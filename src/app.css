@@ -14,3 +14,16 @@ body {
   place-items: center;
   min-height: 100vh;
 }
+
+.code {
+  font-size: 2.5rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+
+.countdown {
+  color: #8b93a7;
+  text-align: center;
+  margin: 0.25rem 0 0;
+}
