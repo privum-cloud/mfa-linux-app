@@ -22,3 +22,6 @@ dist/
 # Local state — never commit a vault
 *.bin
 vault.bin
+
+# Internal planning: specs and implementation plans stay local
+docs/superpowers/
