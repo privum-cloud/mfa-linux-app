@@ -36,3 +36,6 @@ url = "2"
 dirs = "5"
 percent-encoding = "2"
 base64 = "0.22"
+rqrr = "0.10"
+qrcode = { version = "0.14", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
