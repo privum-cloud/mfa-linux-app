@@ -24,8 +24,7 @@ mod tests {
     // each hash's block size, which is why the three differ in length.
     const SHA1_KEY: &[u8] = b"12345678901234567890";
     const SHA256_KEY: &[u8] = b"12345678901234567890123456789012";
-    const SHA512_KEY: &[u8] =
-        b"1234567890123456789012345678901234567890123456789012345678901234";
+    const SHA512_KEY: &[u8] = b"1234567890123456789012345678901234567890123456789012345678901234";
 
     #[test]
     fn rfc6238_appendix_b_vectors() {
