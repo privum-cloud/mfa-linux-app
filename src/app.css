@@ -419,3 +419,47 @@ button {
   color: var(--text-faint);
   font-size: 12.5px;
 }
+
+/* Import and export need to scroll: an export is one picture per ten accounts. */
+.pane--top {
+  justify-content: flex-start;
+  min-height: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.notice {
+  margin: 0;
+  padding: var(--gap-2) var(--gap-3);
+  color: var(--text);
+  background: rgba(61, 125, 255, 0.12);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.warning {
+  margin: 0;
+  padding: var(--gap-2) var(--gap-3);
+  color: var(--warn);
+  background: rgba(224, 163, 60, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.qr {
+  margin: 0;
+  text-align: center;
+}
+
+.qr img {
+  width: 100%;
+  max-width: 320px;
+  image-rendering: pixelated;
+  border-radius: var(--radius-sm);
+}
+
+.qr figcaption {
+  margin-top: var(--gap-1);
+  color: var(--text-dim);
+  font-size: 12.5px;
+}

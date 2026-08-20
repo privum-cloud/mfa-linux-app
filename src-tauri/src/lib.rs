@@ -37,6 +37,9 @@ pub fn run() {
             commands::note_activity,
             commands::get_settings,
             commands::set_settings,
+            commands::import_from_image,
+            commands::import_from_migration_uri,
+            commands::export_migration_qrs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tessera");

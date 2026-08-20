@@ -6,13 +6,15 @@ import AccountList from "./screens/AccountList";
 import AddAccount from "./screens/AddAccount";
 import EditAccount from "./screens/EditAccount";
 import SettingsScreen from "./screens/SettingsScreen";
+import ImportExport from "./screens/ImportExport";
 import Unlock from "./screens/Unlock";
 
 type Screen =
   | { name: "list" }
   | { name: "add" }
   | { name: "edit"; account: AccountView }
-  | { name: "settings" };
+  | { name: "settings" }
+  | { name: "transfer" };
 
 export default function App() {
   const { status, accounts, settings, error, actions } = useVault();
@@ -46,6 +48,7 @@ export default function App() {
           onPaste={actions.addFromUri}
           onManual={actions.addManual}
           onDone={back}
+          onTransfer={() => setScreen({ name: "transfer" })}
         />
       </main>
     );
@@ -65,6 +68,19 @@ export default function App() {
             actions.update(live.id, issuer, label, group)
           }
           onDelete={() => actions.remove(live.id)}
+          onDone={back}
+        />
+      </main>
+    );
+  }
+
+  if (screen.name === "transfer") {
+    return (
+      <main className="shell">
+        <ImportExport
+          error={error}
+          onImported={actions.refresh}
+          onError={actions.setError}
           onDone={back}
         />
       </main>

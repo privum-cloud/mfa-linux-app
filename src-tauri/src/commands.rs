@@ -248,6 +248,128 @@ pub fn note_activity(state: tauri::State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+/// What an import did, so the interface can say so plainly.
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+pub struct ImportSummary {
+    pub added: u32,
+    pub already_present: u32,
+}
+
+/// Add imported accounts, skipping ones the vault already holds.
+///
+/// Matching is on the secret and not the identifier: an account read from a
+/// phone carries a fresh id every time it is exported, so matching by id would
+/// duplicate everything on every retry — and retrying is the normal case,
+/// because people repeat an import when they are not sure it worked.
+///
+/// Tombstones are deliberately not matched against: a deleted account is one
+/// the user removed, and importing the same secret again is them asking for it
+/// back.
+fn merge_imported(document: &mut VaultDocument, incoming: Vec<Account>) -> ImportSummary {
+    let mut summary = ImportSummary {
+        added: 0,
+        already_present: 0,
+    };
+
+    for account in incoming {
+        let known = document
+            .accounts
+            .iter()
+            .any(|existing| !existing.is_deleted() && existing.secret == account.secret);
+
+        if known {
+            summary.already_present += 1;
+        } else {
+            document.upsert(account);
+            summary.added += 1;
+        }
+    }
+    summary
+}
+
+#[tauri::command]
+pub fn import_from_migration_uri(
+    state: tauri::State<'_, AppState>,
+    uri: String,
+) -> Result<ImportSummary, String> {
+    let accounts = crate::import::parse_migration(&uri).map_err(|e| e.to_string())?;
+    let mut summary = ImportSummary {
+        added: 0,
+        already_present: 0,
+    };
+    vault(&state)?
+        .mutate(|doc| summary = merge_imported(doc, accounts))
+        .map_err(fail)?;
+    Ok(summary)
+}
+
+/// Import every account from every QR code in an image file.
+#[tauri::command]
+pub fn import_from_image(
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<ImportSummary, String> {
+    let bytes = std::fs::read(&path).map_err(|e| format!("could not read that file: {e}"))?;
+    let payloads = crate::import::read_qr_codes(&bytes).map_err(|e| e.to_string())?;
+
+    // One image may hold several codes, and a Google export of many accounts is
+    // several codes. Take everything that parses; refuse only if nothing did.
+    let mut accounts = Vec::new();
+    let mut unreadable = 0;
+    for payload in &payloads {
+        if let Ok(mut batch) = crate::import::parse_migration(payload) {
+            accounts.append(&mut batch);
+        } else if let Ok(single) = crate::import::parse_otpauth(payload) {
+            accounts.push(single);
+        } else {
+            unreadable += 1;
+        }
+    }
+
+    if accounts.is_empty() {
+        return Err(if unreadable > 0 {
+            "that image holds QR codes, but none of them are accounts".to_owned()
+        } else {
+            "there is no QR code in that image".to_owned()
+        });
+    }
+
+    let mut summary = ImportSummary {
+        added: 0,
+        already_present: 0,
+    };
+    vault(&state)?
+        .mutate(|doc| summary = merge_imported(doc, accounts))
+        .map_err(fail)?;
+    Ok(summary)
+}
+
+/// Render the whole vault as Google Authenticator QR codes, as PNG data URLs.
+///
+/// The payload carries every secret in the vault, so it becomes a picture here
+/// in Rust and never crosses into the interface as text.
+#[tauri::command]
+pub fn export_migration_qrs(state: tauri::State<'_, AppState>) -> Result<Vec<String>, String> {
+    use base64::Engine;
+
+    let guard = vault(&state)?;
+    let accounts: Vec<_> = guard.document().map_err(fail)?.live().cloned().collect();
+    if accounts.is_empty() {
+        return Err("there is nothing to export yet".to_owned());
+    }
+
+    crate::import::to_migration_uris(&accounts, crate::import::ACCOUNTS_PER_BATCH)
+        .iter()
+        .map(|uri| {
+            let png = crate::import::render_qr_png(uri).map_err(|e| e.to_string())?;
+            Ok(format!(
+                "data:image/png;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(&png)
+            ))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +451,54 @@ mod tests {
         account.soft_delete();
         doc.upsert(account);
         assert!(views_of(&doc, 59).is_empty());
+    }
+
+    #[test]
+    fn an_import_reports_what_it_added_and_what_it_already_had() {
+        // Importing the same export twice is the normal case — a person retries
+        // when they are unsure it worked. Silently duplicating every account
+        // would be the worst possible answer.
+        let mut doc = VaultDocument::new();
+        doc.upsert(totp_account());
+
+        let incoming = vec![totp_account(), sample_other()];
+        let summary = merge_imported(&mut doc, incoming);
+
+        assert_eq!(summary.added, 1);
+        assert_eq!(summary.already_present, 1);
+        assert_eq!(doc.live().count(), 2, "an account was duplicated");
+    }
+
+    #[test]
+    fn importing_matches_on_the_secret_not_the_identifier() {
+        // An account read from a phone carries a fresh id every time it is
+        // exported, so matching by id would duplicate on every retry.
+        let mut doc = VaultDocument::new();
+        doc.upsert(totp_account());
+
+        let mut renamed = totp_account();
+        renamed.issuer = "GitHub (renamed on the phone)".into();
+
+        let summary = merge_imported(&mut doc, vec![renamed]);
+        assert_eq!(summary.added, 0);
+        assert_eq!(summary.already_present, 1);
+    }
+
+    #[test]
+    fn a_deleted_account_can_be_imported_again() {
+        // A tombstone means the user removed it. Bringing the same secret back
+        // deliberately must work, or a delete becomes permanent by accident.
+        let mut doc = VaultDocument::new();
+        let mut gone = totp_account();
+        gone.soft_delete();
+        doc.upsert(gone);
+
+        let summary = merge_imported(&mut doc, vec![totp_account()]);
+        assert_eq!(summary.added, 1);
+        assert_eq!(doc.live().count(), 1);
+    }
+
+    fn sample_other() -> Account {
+        parse_otpauth("otpauth://totp/Google:alice?secret=JBSWY3DPEHPK3PXP").unwrap()
     }
 }
