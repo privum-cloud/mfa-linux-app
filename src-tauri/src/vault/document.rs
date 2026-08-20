@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::model::Account;
+use crate::vault::Settings;
 
 /// How long a deleted account is kept as a tombstone.
 ///
@@ -24,6 +25,9 @@ pub struct VaultDocument {
     pub version: u32,
     pub device_id: Uuid,
     pub accounts: Vec<Account>,
+    /// `serde(default)` so a vault written before settings existed still opens.
+    #[serde(default)]
+    pub settings: Settings,
 }
 
 impl VaultDocument {
@@ -32,6 +36,7 @@ impl VaultDocument {
             version: CURRENT_VERSION,
             device_id: Uuid::new_v4(),
             accounts: Vec::new(),
+            settings: Settings::default(),
         }
     }
 
@@ -156,5 +161,15 @@ mod tests {
         let back: VaultDocument = serde_json::from_slice(&json).unwrap();
         assert_eq!(back.device_id, doc.device_id);
         assert_eq!(back.accounts.len(), 1);
+    }
+
+    #[test]
+    fn a_document_written_before_settings_existed_still_opens() {
+        // Vaults on disk predate this field. Losing them to a missing key would
+        // be the worst possible bug in a program that holds second factors.
+        let legacy =
+            r#"{"version":1,"device_id":"00000000-0000-4000-8000-000000000000","accounts":[]}"#;
+        let doc: VaultDocument = serde_json::from_str(legacy).unwrap();
+        assert_eq!(doc.settings, crate::vault::Settings::default());
     }
 }
