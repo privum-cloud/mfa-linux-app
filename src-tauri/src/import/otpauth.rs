@@ -22,6 +22,10 @@ pub enum ImportError {
     BadSecret,
     #[error("the link has an unusable {0}")]
     BadParameter(String),
+    #[error("that is not a Google Authenticator export")]
+    NotMigration,
+    #[error("that export uses an algorithm Tessera cannot generate codes for")]
+    UnsupportedAlgorithm,
 }
 
 /// Digit counts outside this range cannot produce a code anyone can type.
