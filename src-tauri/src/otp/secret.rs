@@ -1,6 +1,7 @@
 //! The shared secret behind an account, held so it cannot be left in memory.
 
 use base32::Alphabet;
+use serde::Deserialize as _;
 use zeroize::Zeroizing;
 
 /// Errors from parsing OTP inputs.
@@ -66,6 +67,19 @@ impl PartialEq for Secret {
 }
 
 impl Eq for Secret {}
+
+impl serde::Serialize for Secret {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_base32())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Secret {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let encoded = String::deserialize(deserializer)?;
+        Secret::from_base32(&encoded).map_err(serde::de::Error::custom)
+    }
+}
 
 #[cfg(test)]
 mod tests {
