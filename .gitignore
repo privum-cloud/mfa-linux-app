@@ -1,23 +1,24 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
+# Rust
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Build artefacts
+/packages/
+*.deb
+*.rpm
+*.AppImage
+*.flatpak
+
+# Editors
 .vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-files
-*.bclicense
-*.flf
-#Test results file
-TestResults.xml
+.idea/
+*.swp
+
+# Local state — never commit a vault
+*.bin
+vault.bin

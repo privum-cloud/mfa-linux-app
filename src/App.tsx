@@ -1,0 +1,126 @@
+import { useState } from "react";
+
+import { useVault } from "./lib/useVault";
+import type { AccountView } from "./lib/api";
+import AccountList from "./screens/AccountList";
+import AddAccount from "./screens/AddAccount";
+import EditAccount from "./screens/EditAccount";
+import SettingsScreen from "./screens/SettingsScreen";
+import Unlock from "./screens/Unlock";
+
+type Screen =
+  | { name: "list" }
+  | { name: "add" }
+  | { name: "edit"; account: AccountView }
+  | { name: "settings" };
+
+export default function App() {
+  const { status, accounts, settings, error, actions } = useVault();
+  const [screen, setScreen] = useState<Screen>({ name: "list" });
+
+  // The very first render, before the core has answered.
+  if (!status) return <main className="shell" />;
+
+  if (!status.unlocked) {
+    return (
+      <main className="shell">
+        <Unlock
+          existing={status.exists}
+          error={error}
+          onSubmit={status.exists ? actions.unlock : actions.create}
+        />
+      </main>
+    );
+  }
+
+  const back = () => {
+    actions.clearError();
+    setScreen({ name: "list" });
+  };
+
+  if (screen.name === "add") {
+    return (
+      <main className="shell">
+        <AddAccount
+          error={error}
+          onPaste={actions.addFromUri}
+          onManual={actions.addManual}
+          onDone={back}
+        />
+      </main>
+    );
+  }
+
+  if (screen.name === "edit") {
+    // The list refreshes every second, so read the live row rather than the
+    // one captured when the screen opened.
+    const live =
+      accounts.find((a) => a.id === screen.account.id) ?? screen.account;
+    return (
+      <main className="shell">
+        <EditAccount
+          account={live}
+          error={error}
+          onSave={(issuer, label, group) =>
+            actions.update(live.id, issuer, label, group)
+          }
+          onDelete={() => actions.remove(live.id)}
+          onDone={back}
+        />
+      </main>
+    );
+  }
+
+  if (screen.name === "settings" && settings) {
+    return (
+      <main className="shell">
+        <SettingsScreen
+          settings={settings}
+          error={error}
+          onSave={actions.saveSettings}
+          onLock={() => {
+            void actions.lock();
+            setScreen({ name: "list" });
+          }}
+          onDone={back}
+        />
+      </main>
+    );
+  }
+
+  return (
+    <main className="shell">
+      <header className="header">
+        <h1 className="header__title">Tessera</h1>
+        <button
+          className="header__action"
+          type="button"
+          onClick={() => setScreen({ name: "settings" })}
+          aria-label="Settings"
+          title="Settings"
+        >
+          ⚙
+        </button>
+        <button
+          className="header__action header__action--primary"
+          type="button"
+          onClick={() => setScreen({ name: "add" })}
+          aria-label="Add an account"
+          title="Add an account"
+        >
+          +
+        </button>
+      </header>
+
+      <div className="shell__body">
+        {error && <p className="error error--inline">{error}</p>}
+        <AccountList
+          accounts={accounts}
+          clipboardClearSecs={settings?.clipboardClearSecs ?? 20}
+          onEdit={(account) => setScreen({ name: "edit", account })}
+          onActivity={actions.noteActivity}
+        />
+      </div>
+    </main>
+  );
+}
