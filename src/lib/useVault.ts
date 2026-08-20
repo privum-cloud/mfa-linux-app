@@ -120,6 +120,10 @@ export function useVault() {
         // early. Not worth interrupting the user over.
       });
     },
+    refresh: () => {
+      void refreshAccounts().catch((e: unknown) => setError(String(e)));
+    },
+    setError: (message: string) => setError(message),
     clearError: () => setError(null),
   };
 

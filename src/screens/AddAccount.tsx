@@ -7,11 +7,18 @@ interface Props {
   onPaste: (uri: string) => Promise<boolean>;
   onManual: (account: ManualAccount) => Promise<boolean>;
   onDone: () => void;
+  onTransfer: () => void;
 }
 
 type Mode = "link" | "manual";
 
-export default function AddAccount({ error, onPaste, onManual, onDone }: Props) {
+export default function AddAccount({
+  error,
+  onPaste,
+  onManual,
+  onDone,
+  onTransfer,
+}: Props) {
   const [mode, setMode] = useState<Mode>("link");
   const [uri, setUri] = useState("");
   const [issuer, setIssuer] = useState("");
@@ -96,6 +103,10 @@ export default function AddAccount({ error, onPaste, onManual, onDone }: Props) 
         )}
 
         {error && <p className="error">{error}</p>}
+
+        <button className="button button--quiet" type="button" onClick={onTransfer}>
+          Bring accounts over from Google Authenticator
+        </button>
 
         <div className="button-row">
           <button

@@ -113,3 +113,34 @@ export const setSettings = async (settings: Settings): Promise<Settings> =>
       },
     }),
   );
+
+export interface ImportSummary {
+  added: number;
+  alreadyPresent: number;
+}
+
+const toSummary = (raw: { added: number; already_present: number }): ImportSummary => ({
+  added: raw.added,
+  alreadyPresent: raw.already_present,
+});
+
+export const importFromImage = async (path: string): Promise<ImportSummary> =>
+  toSummary(
+    await invoke<{ added: number; already_present: number }>(
+      "import_from_image",
+      { path },
+    ),
+  );
+
+export const importFromMigrationUri = async (
+  uri: string,
+): Promise<ImportSummary> =>
+  toSummary(
+    await invoke<{ added: number; already_present: number }>(
+      "import_from_migration_uri",
+      { uri },
+    ),
+  );
+
+/** PNG data URLs. The payload never crosses as text — it is rendered in Rust. */
+export const exportMigrationQrs = () => invoke<string[]>("export_migration_qrs");
