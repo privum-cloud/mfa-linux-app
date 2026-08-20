@@ -49,6 +49,8 @@ fn code_at(
             crate::otp::hotp(algorithm, secret.expose(), counter, digits),
             0,
         ),
+        // Steam fixes its own shape: five characters over thirty seconds. The
+        // account's `digits` and `period` are deliberately ignored here.
         AccountKind::Steam => (
             steam_at(secret.expose(), unix_seconds),
             seconds_remaining(unix_seconds, 30),

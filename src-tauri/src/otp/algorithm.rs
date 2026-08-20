@@ -95,4 +95,13 @@ mod tests {
         assert_eq!(code.len(), 8);
         assert!(code.chars().all(|c| c.is_ascii_digit()));
     }
+
+    #[test]
+    fn a_large_digit_count_does_not_panic() {
+        // `digits` is not ours to trust: it is deserialised from the vault
+        // document and, once importing exists, from a Google Authenticator
+        // protobuf we did not write. 10^10 overflows a u32 and panics in debug.
+        let code = hotp(Algorithm::Sha1, SECRET, 0, 10);
+        assert_eq!(code.len(), 10);
+    }
 }
