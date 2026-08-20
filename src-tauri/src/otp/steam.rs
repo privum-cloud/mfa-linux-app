@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn alphabet_excludes_characters_that_are_easy_to_misread() {
-        for confusable in [b'0', b'1', b'I', b'O', b'S', b'A', b'E', b'U'] {
+        for &confusable in b"01IOSAEU" {
             assert!(
                 !ALPHABET.contains(&confusable),
                 "{} should not be in the Steam alphabet",

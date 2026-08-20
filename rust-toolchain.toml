@@ -1,0 +1,5 @@
+# Pinned so a clippy lint added to a newer stable cannot fail CI on a commit
+# that passed locally. Raise this deliberately, not by drift.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]
