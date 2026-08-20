@@ -1,6 +1,7 @@
 mod commands;
 pub mod model;
 pub mod otp;
+pub mod vault;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
