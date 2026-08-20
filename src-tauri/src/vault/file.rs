@@ -40,7 +40,15 @@ pub fn save_document(
     buf.extend_from_slice(&ciphertext);
 
     if let Some(parent) = path.parent() {
+        // Only narrow a directory we created ourselves. The vault may sit in a
+        // directory that is not ours to tighten — /tmp during tests, or a path
+        // the user chose — and chmod'ing someone else's directory is a worse
+        // bug than the one this is guarding against.
+        let ours = !parent.exists();
         std::fs::create_dir_all(parent).map_err(|e| VaultError::Io(e.to_string()))?;
+        if ours {
+            restrict_to_owner(parent, 0o700)?;
+        }
     }
 
     // Same directory, so the rename stays on one filesystem and is atomic.
@@ -54,13 +62,44 @@ pub fn save_document(
 
 /// Write the whole buffer and flush it to the device before returning, so the
 /// rename that follows cannot expose a file whose contents are still in cache.
+///
+/// The mode is set at creation rather than after the rename. `File::create`
+/// would otherwise yield 0644, and a vault readable by every other account on
+/// the machine is a copy anyone can attack offline at leisure. Setting it after
+/// the rename would leave a window where that copy exists; `rename` carries the
+/// inode's permissions across, so the temporary file is where it belongs.
 fn write_and_sync(path: &Path, buf: &[u8]) -> Result<(), VaultError> {
     use std::io::Write;
 
-    let mut file = std::fs::File::create(path).map_err(|e| VaultError::Io(e.to_string()))?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+
+    let mut file = options
+        .open(path)
+        .map_err(|e| VaultError::Io(e.to_string()))?;
     file.write_all(buf)
         .map_err(|e| VaultError::Io(e.to_string()))?;
     file.sync_all().map_err(|e| VaultError::Io(e.to_string()))
+}
+
+/// Narrow an existing path to its owner.
+///
+/// Used for the containing directory, which `create_dir_all` leaves at 0755.
+/// Only ever called on a directory this process just created.
+#[allow(unused_variables)]
+fn restrict_to_owner(path: &Path, mode: u32) -> Result<(), VaultError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+            .map_err(|e| VaultError::Io(e.to_string()))?;
+    }
+    Ok(())
 }
 
 /// Read `path` and open it with `password`.
@@ -199,5 +238,42 @@ mod tests {
             "temporary files survived: {leftovers:?}"
         );
         std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn the_vault_is_readable_only_by_its_owner() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // The file is encrypted, so 0644 is not a break — but it hands every
+        // other account on the machine a copy to attack offline at leisure.
+        // 0600 is the floor for a secrets file; ssh refuses to load a key
+        // without it.
+        let path = tmp_path("permissions");
+        save_document(&path, "m", KdfParams::default(), b"x").unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "vault mode was {mode:o}, expected 600");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn the_vault_directory_is_reachable_only_by_its_owner() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut dir = std::env::temp_dir();
+        dir.push("tessera-test-dirperms");
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("vault.bin");
+
+        save_document(&path, "m", KdfParams::default(), b"x").unwrap();
+
+        let mode = std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o700,
+            "vault directory mode was {mode:o}, expected 700"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
