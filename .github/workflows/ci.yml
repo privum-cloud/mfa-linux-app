@@ -2,7 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # feature branches too, so a broken workflow surfaces on the branch that
+    # broke it rather than at merge time
+    branches: [main, "feat/**"]
   pull_request:
 
 jobs:
