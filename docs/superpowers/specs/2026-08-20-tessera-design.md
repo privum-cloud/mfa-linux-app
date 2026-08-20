@@ -132,6 +132,7 @@ struct Account {
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     deleted_at: Option<DateTime<Utc>>,
+    revision: u64,            // incremented on every local edit; the merge authority
 }
 ```
 
@@ -142,6 +143,9 @@ Two decisions here are cheap now and expensive to retrofit:
 label. The model supports all of them even where the interface initially exposes only
 the common case of TOTP/SHA1/6 digits/30 seconds. Discarding a field on import loses
 data the user cannot recover.
+
+Note that `counter` is the one mutable field on an account, and section 4.6 gives it
+merge semantics of its own for that reason.
 
 **Soft delete is mandatory.** `deleted_at` is a tombstone. Without one, deleting an
 account on machine A cannot propagate to machine B — the next merge sees an account
@@ -214,14 +218,46 @@ verified, Google shows an "unverified app" warning and caps the application at r
 uploads and downloads exactly one object: the **sealed vault blob**, byte-identical in
 format to the local file. Google stores ciphertext it cannot read.
 
+**Concurrent writes.** One object updated read-modify-write by several machines is a
+lost-update race. Drive v3 exposes a `version` field on the file that advances on every
+server-side modification, which is enough to *detect* that the remote changed, but the
+implementation must confirm whether Drive offers a genuine conditional write before
+relying on one — this specification does not assume compare-and-swap exists.
+
+The design therefore makes a lost update **recoverable rather than impossible**. Each
+device treats its own local vault as the authority for its own changes and never
+discards them on upload. A sync reads the remote `version`, merges, writes, and re-reads;
+if the version moved underneath it, it merges again and rewrites. Should a write be
+clobbered anyway, the clobbering device's next sync merges the surviving remote against
+its intact local vault, and because the merge rules above are convergent, both devices
+arrive at the same union. Data is lost only if a device's local vault is also destroyed
+in the same window.
+
 **Merge.** `merge.rs` reconciles two vault documents:
 
 - Accounts are matched by `id` (a UUID assigned at creation, stable across devices).
-- Where both sides hold the same `id`, the higher `updated_at` wins.
-- A tombstone beats a live record of equal or older `updated_at`.
+- Where both sides hold the same `id`, the record with the higher `revision` wins;
+  `updated_at` breaks ties only when revisions are equal.
+- A tombstone beats a live record at equal or lower revision.
 - Accounts present on only one side are kept.
-- Each vault carries a `device_id` and a monotonic `revision`, so a device can tell
-  whether the remote has changed since its last upload and skip a needless merge.
+- **`counter` on HOTP accounts merges as `max(local, remote)`, never last-write-wins.**
+- Each vault carries a `device_id`, and each account carries a monotonic `revision`
+  incremented on every local edit.
+
+**Why revision rather than `updated_at`.** Using a wall clock as the merge key assumes
+two machines agree on the time. They usually do, but a laptop with a skewed clock
+produces a record that wins every merge forever, and the user has no way to see why.
+A per-account counter incremented locally has no such failure mode. `updated_at` is
+retained for display and as a tiebreaker, not as the authority.
+
+**Why HOTP counters are special.** Every other field on an account is effectively
+immutable once created, which is what makes last-write-wins safe. An HOTP `counter` is
+not: it advances each time a code is generated. If two machines each generate codes
+and the newer write simply overwrites the older, the increments from the losing side
+are lost, the token falls behind the server's counter, and the user is locked out of
+that account. Taking the maximum is correct because the counter only ever moves
+forward, and being ahead of the server is recoverable through its resynchronisation
+window while being behind is not.
 
 Synchronisation runs on unlock, on change, and on explicit request. A merge conflict
 never destroys data: the losing version of a modified account is retained in a
@@ -299,7 +335,11 @@ so rather than pretend otherwise.
 - **`vault/`** — seal and open round-trips, wrong-password rejection, atomic-write
   behaviour under an interrupted save.
 - **`sync/merge.rs`** — the conflict matrix: concurrent add, concurrent edit, delete
-  against edit, tombstone expiry, and a device rejoining after being offline.
+  against edit, tombstone expiry, and a device rejoining after being offline. Two cases
+  earn explicit tests because they are the ones that lose user data silently: an HOTP
+  counter advanced on both machines must merge to the maximum, and a machine with a
+  skewed clock must not win a merge it should lose. A property test asserts convergence —
+  merging in either order yields the same document.
 - **End-to-end** — a full import from a real Google Authenticator export, then export
   back, verifying the codes agree with the phone.
 
