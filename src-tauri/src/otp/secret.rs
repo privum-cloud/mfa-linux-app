@@ -1,7 +1,6 @@
 //! The shared secret behind an account, held so it cannot be left in memory.
 
 use base32::Alphabet;
-use serde::Deserialize as _;
 use zeroize::Zeroizing;
 
 /// Errors from parsing OTP inputs.
@@ -50,7 +49,10 @@ impl Secret {
 
     /// Re-encode as base32, for export and for showing a QR code.
     pub fn to_base32(&self) -> Zeroizing<String> {
-        Zeroizing::new(base32::encode(Alphabet::Rfc4648 { padding: false }, &self.0))
+        Zeroizing::new(base32::encode(
+            Alphabet::Rfc4648 { padding: false },
+            &self.0,
+        ))
     }
 }
 

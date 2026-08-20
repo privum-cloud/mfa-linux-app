@@ -28,7 +28,8 @@ type HmacSha512 = Hmac<Sha512>;
 pub(crate) fn mac(alg: Algorithm, key: &[u8], message: &[u8]) -> Vec<u8> {
     match alg {
         Algorithm::Sha1 => {
-            let mut m = <HmacSha1 as Mac>::new_from_slice(key).expect("HMAC accepts any key length");
+            let mut m =
+                <HmacSha1 as Mac>::new_from_slice(key).expect("HMAC accepts any key length");
             m.update(message);
             m.finalize().into_bytes().to_vec()
         }

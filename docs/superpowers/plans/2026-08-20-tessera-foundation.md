@@ -565,7 +565,7 @@ pub fn hotp(alg: Algorithm, key: &[u8], counter: u64, digits: u32) -> String {
 EOF
 ```
 
-And declare the module in `src-tauri/src/lib.rs` by inserting `mod otp;` as the first line of the file.
+And declare the module in `src-tauri/src/lib.rs` by inserting `pub mod otp;` as the first line of the file. It is public because it is the library's real surface; private would make test-only items read as dead code.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -1136,7 +1136,7 @@ impl<'de> serde::Deserialize<'de> for Secret {
 }
 ```
 
-Add `use serde::Deserialize as _;` to the top of `secret.rs` so `String::deserialize` resolves.
+No extra import is needed: `String::deserialize` resolves without bringing the trait into scope.
 
 - [ ] **Step 4: Write the Account implementation**
 
@@ -1239,7 +1239,7 @@ pub use account::{Account, AccountKind};
 EOF
 ```
 
-Add `mod model;` to `src-tauri/src/lib.rs` beneath `mod otp;`.
+Add `pub mod model;` to `src-tauri/src/lib.rs` beneath `pub mod otp;`.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -1408,8 +1408,12 @@ Wire it up in `src-tauri/src/lib.rs`:
 
 ```rust
 mod commands;
-mod model;
-mod otp;
+// `otp` and `model` are public because they are the library's real surface.
+// Leaving them private makes every item used only by tests read as dead code,
+// which would have to be silenced with allow(dead_code) — and that would hide
+// genuinely dead code later.
+pub mod model;
+pub mod otp;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1438,14 +1442,17 @@ import { invoke } from "@tauri-apps/api/core";
 export type AccountKind = "totp" | "hotp" | "steam";
 export type Algorithm = "SHA1" | "SHA256" | "SHA512";
 
-export interface PreviewInput {
+// A type alias rather than an interface: Tauri's `invoke` takes
+// `Record<string, unknown>`, and TypeScript grants an implicit index signature
+// to type aliases but not to interfaces.
+export type PreviewInput = {
   secret: string;
   kind: AccountKind;
   algorithm: Algorithm;
   digits: number;
   period: number;
   counter: number;
-}
+};
 
 export interface CodeView {
   code: string;
