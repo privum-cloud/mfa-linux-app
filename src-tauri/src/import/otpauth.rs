@@ -26,6 +26,12 @@ pub enum ImportError {
     NotMigration,
     #[error("that export uses an algorithm Tessera cannot generate codes for")]
     UnsupportedAlgorithm,
+    #[error("Tessera could not read that file as an image")]
+    NotAnImage,
+    #[error("there is no QR code in that image")]
+    NoQrCode,
+    #[error("that is too much data for one QR code")]
+    QrTooLarge,
 }
 
 /// Digit counts outside this range cannot produce a code anyone can type.
