@@ -925,7 +925,7 @@ mod tests {
 
     #[test]
     fn alphabet_excludes_characters_that_are_easy_to_misread() {
-        for confusable in [b'0', b'1', b'I', b'O', b'S', b'A', b'E', b'U'] {
+        for &confusable in b"01IOSAEU" {
             assert!(
                 !ALPHABET.contains(&confusable),
                 "{} should not be in the Steam alphabet",
@@ -1601,7 +1601,9 @@ jobs:
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
             libayatana-appindicator3-dev patchelf
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned to match rust-toolchain.toml. @stable drifts, and a lint added
+      # to a newer clippy fails commits that were clean when written.
+      - uses: dtolnay/rust-toolchain@1.96.0
         with:
           components: rustfmt, clippy
 
