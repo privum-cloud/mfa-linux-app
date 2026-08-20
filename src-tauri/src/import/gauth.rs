@@ -425,4 +425,33 @@ mod tests {
             0
         );
     }
+
+    #[test]
+    fn a_full_batch_survives_being_drawn_as_a_qr_code_and_read_back() {
+        // The end a phone actually sees: accounts become a payload, the payload
+        // becomes a picture, and the picture has to come back as the same
+        // accounts. Ten is a full Google batch — if that does not fit in one QR
+        // code, exporting is broken for anyone with a normal number of accounts.
+        let accounts: Vec<_> = (0..ACCOUNTS_PER_BATCH)
+            .map(|i| sample("Some Service Ltd", &format!("person{i}@privum.cloud")))
+            .collect();
+
+        let uris = to_migration_uris(&accounts, ACCOUNTS_PER_BATCH);
+        assert_eq!(uris.len(), 1, "a full batch should be one code");
+
+        let png = super::super::render_qr_png(&uris[0]).expect("a full batch must fit in one QR");
+        let read_back = super::super::read_qr_codes(&png).unwrap();
+        assert_eq!(read_back.len(), 1);
+
+        let restored = parse_migration(&read_back[0]).unwrap();
+        assert_eq!(restored.len(), ACCOUNTS_PER_BATCH);
+        for (original, back) in accounts.iter().zip(restored.iter()) {
+            assert_eq!(
+                back.secret, original.secret,
+                "a secret was lost in the picture"
+            );
+            assert_eq!(back.issuer, original.issuer);
+            assert_eq!(back.label, original.label);
+        }
+    }
 }
