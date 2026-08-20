@@ -35,6 +35,8 @@ pub fn run() {
             commands::delete_account,
             commands::poll_idle_lock,
             commands::note_activity,
+            commands::get_settings,
+            commands::set_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tessera");

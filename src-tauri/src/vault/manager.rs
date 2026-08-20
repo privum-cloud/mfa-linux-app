@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use zeroize::Zeroizing;
 
-use crate::vault::{load_document, save_document, KdfParams, VaultDocument, VaultError};
+use crate::vault::{load_document, save_document, KdfParams, Settings, VaultDocument, VaultError};
 
 /// Where the vault lives, following the XDG base directory specification.
 pub fn default_vault_path() -> PathBuf {
@@ -102,6 +102,19 @@ impl VaultManager {
         let password = state.password.clone();
         let document = state.document.clone();
         self.write(&password, &document)
+    }
+
+    /// How long this vault stays open with nothing happening.
+    ///
+    /// Locked vaults report the default, because there is nothing to lock and
+    /// the caller only needs a number to sleep on.
+    pub fn idle_timeout(&self) -> Duration {
+        let secs = self
+            .state
+            .as_ref()
+            .map(|s| s.document.settings.validated().idle_timeout_secs)
+            .unwrap_or(Settings::default().idle_timeout_secs);
+        Duration::from_secs(u64::from(secs))
     }
 
     /// Note that the user did something, postponing the idle lock.
