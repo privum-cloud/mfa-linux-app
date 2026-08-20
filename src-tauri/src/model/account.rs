@@ -27,7 +27,7 @@ pub enum AccountKind {
 /// `deleted_at` is a tombstone. Removing the record outright would make the
 /// deletion unpropagatable — the next merge would see the account alive on the
 /// other machine and bring it back.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Account {
     pub id: Uuid,
     pub issuer: String,
