@@ -4,7 +4,6 @@
 //! direction: `AccountView` has no field for one, which is the point.
 
 use std::sync::Mutex;
-use std::time::Duration;
 
 use serde::Serialize;
 use uuid::Uuid;
@@ -12,7 +11,7 @@ use uuid::Uuid;
 use crate::import::parse_otpauth;
 use crate::model::{Account, AccountKind};
 use crate::otp::{seconds_remaining, steam_at, totp_at, Algorithm, Secret};
-use crate::vault::{VaultDocument, VaultError, VaultManager};
+use crate::vault::{Settings, VaultDocument, VaultError, VaultManager};
 
 /// Everything the interface needs to draw one row, and nothing more.
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -90,9 +89,6 @@ fn views_of(document: &VaultDocument, unix_seconds: u64) -> Vec<AccountView> {
     rows.sort_by_key(|r| (r.issuer.to_lowercase(), r.label.to_lowercase()));
     rows
 }
-
-/// How long the vault stays open with nothing happening.
-const IDLE_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// A poisoned lock means another thread panicked while holding the vault. The
 /// safe answer is to treat the vault as unusable rather than carry on with
@@ -221,7 +217,27 @@ pub fn delete_account(state: tauri::State<'_, AppState>, id: Uuid) -> Result<(),
 /// so the interface can show the unlock screen without polling for state.
 #[tauri::command]
 pub fn poll_idle_lock(state: tauri::State<'_, AppState>) -> Result<bool, String> {
-    Ok(vault(&state)?.lock_if_idle(IDLE_TIMEOUT))
+    let mut guard = vault(&state)?;
+    let timeout = guard.idle_timeout();
+    Ok(guard.lock_if_idle(timeout))
+}
+
+#[tauri::command]
+pub fn get_settings(state: tauri::State<'_, AppState>) -> Result<Settings, String> {
+    let guard = vault(&state)?;
+    Ok(guard.document().map_err(fail)?.settings.validated())
+}
+
+#[tauri::command]
+pub fn set_settings(
+    state: tauri::State<'_, AppState>,
+    settings: Settings,
+) -> Result<Settings, String> {
+    let clean = settings.validated();
+    vault(&state)?
+        .mutate(|doc| doc.settings = clean)
+        .map_err(fail)?;
+    Ok(clean)
 }
 
 /// Note that the user did something. The interface calls this on interaction so
