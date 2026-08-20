@@ -1415,6 +1415,10 @@ fn percent_decode(value: &str) -> String {
 
 Add `percent-encoding = "2"` to `src-tauri/Cargo.toml`.
 
+`Account` must also gain `PartialEq` in its derive list — the tests above compare
+`Result<Account, ImportError>` values directly, which the derive on `ImportError`
+alone cannot satisfy. Every field already implements it.
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd src-tauri && cargo test import:: 2>&1 | grep 'test result'`

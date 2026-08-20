@@ -1,4 +1,5 @@
 mod commands;
+pub mod import;
 pub mod model;
 pub mod otp;
 pub mod vault;
