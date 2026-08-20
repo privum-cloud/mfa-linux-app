@@ -7,9 +7,11 @@
 
 mod algorithm;
 mod secret;
+mod totp;
 
 pub use algorithm::Algorithm;
 pub use secret::{OtpError, Secret};
+pub use totp::{seconds_remaining, totp_at};
 
 use algorithm::{mac, truncate};
 
