@@ -9,7 +9,7 @@
 Import the accounts you already have in Google Authenticator, generate TOTP and HOTP codes, and send them back to your phone whenever you need to.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](./LICENSE)
-![Platform: Linux](https://img.shields.io/badge/Platform-Linux-333.svg)
+![Platform: Linux and Windows](https://img.shields.io/badge/Platform-Linux%20·%20Windows-333.svg)
 ![Built with Tauri + Rust + React](https://img.shields.io/badge/Built%20with-Tauri%20·%20Rust%20·%20React-24c8db.svg)
 
 Made with ❤️ by **[Privum Cloud »](https://privum.cloud)**
@@ -138,6 +138,11 @@ sudo apt install ./Tessera_0.2.1_amd64.deb
 sudo dnf install ./Tessera-0.2.1-1.x86_64.rpm
 ```
 
+### Windows (`.exe`)
+
+Run the installer. Windows 11 already has the WebView2 runtime Tessera draws through;
+on Windows 10 the installer fetches it if it is missing.
+
 ### Any Linux (`.AppImage`)
 
 No installation, no root:
@@ -176,6 +181,13 @@ derived key never touches disk, at the cost of typing a password each session.
 **The vault file is `0600`** in `~/.local/share/tessera/`, in a `0700` directory. Writes go to
 a temporary file and are renamed into place, so an interrupted save cannot leave a vault that
 is neither the old one nor the new one.
+
+**On Windows the vault is in `%LOCALAPPDATA%`**, not the roaming `%APPDATA%` — a roaming
+profile is copied to a domain server at sign-out, and a file of second factors should not
+travel to one unasked. That folder is created with an access control list granting only the
+owner, SYSTEM and administrators. Note the difference from Linux: Tessera *inherits* that
+rather than setting it, and a vault moved to a shared folder takes the folder's permissions
+instead. Explicit Windows ACLs are not implemented yet.
 
 **The interface never sees a secret.** The Rust core returns generated codes and account names;
 there is no field on that boundary for a shared secret, and a test asserts it on the serialised

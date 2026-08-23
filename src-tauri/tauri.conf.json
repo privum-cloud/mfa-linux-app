@@ -44,6 +44,14 @@
           "libgtk-3-0"
         ]
       }
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": [
+          "English"
+        ]
+      }
     }
   }
 }

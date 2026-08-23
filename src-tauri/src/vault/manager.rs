@@ -18,10 +18,19 @@ fn instance_suffix() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Where the vault lives, following the XDG base directory specification.
+/// Where the vault lives.
+///
+/// On Linux this follows the XDG base directory specification. On Windows it is
+/// deliberately `%LOCALAPPDATA%` rather than the roaming `%APPDATA%`: a roaming
+/// profile is copied to a domain server at sign-out, and a file holding second
+/// factors has no business travelling to one without the user asking.
 pub fn default_vault_path() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
+    #[cfg(windows)]
+    let base = dirs::data_local_dir();
+    #[cfg(not(windows))]
+    let base = dirs::data_dir();
+
+    base.unwrap_or_else(|| PathBuf::from("."))
         .join("tessera")
         .join("vault.bin")
 }

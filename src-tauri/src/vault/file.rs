@@ -104,6 +104,13 @@ fn write_and_sync(path: &Path, buf: &[u8]) -> Result<(), VaultError> {
 
 /// Narrow an existing path to its owner.
 ///
+/// Unix only. Windows has no mode bits, and restricting a file there means
+/// rewriting its access control list — real work that is not done yet. What
+/// stands in for it is the location: `%LOCALAPPDATA%` is created with an ACL
+/// granting only the owner, SYSTEM and administrators. That is inherited rather
+/// than enforced by Tessera, and a vault the user moves to a shared folder
+/// takes that folder's permissions instead. Said plainly in the README.
+///
 /// Used for the containing directory, which `create_dir_all` leaves at 0755.
 /// Only ever called on a directory this process just created.
 #[allow(unused_variables)]
