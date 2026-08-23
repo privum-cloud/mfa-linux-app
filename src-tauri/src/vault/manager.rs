@@ -1,11 +1,22 @@
 //! Unlocked state, and the rules for losing it.
 
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use zeroize::Zeroizing;
 
-use crate::vault::{load_document, save_document, KdfParams, Settings, VaultDocument, VaultError};
+use crate::sync::merge;
+use crate::vault::{
+    load_document, save_document_to, KdfParams, Location, Settings, VaultDocument, VaultError,
+};
+
+/// Something different for every manager built, so two of them never write
+/// through the same temporary file.
+fn instance_suffix() -> String {
+    let mut bytes = [0u8; 4];
+    let _ = getrandom::getrandom(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
 
 /// Where the vault lives, following the XDG base directory specification.
 pub fn default_vault_path() -> PathBuf {
@@ -26,11 +37,77 @@ struct Unlocked {
 pub struct VaultManager {
     path: PathBuf,
     state: Option<Unlocked>,
+    /// Keeps two writers off one temporary file. Random per manager, so it is
+    /// distinct across machines, across processes, and within a process.
+    writer_id: String,
+    /// Modified time and length of the vault the last time this manager read or
+    /// wrote it. Comparing a `stat` against this is how an outside change is
+    /// noticed without paying for another key derivation.
+    last_seen: Option<(SystemTime, u64)>,
 }
 
 impl VaultManager {
     pub fn new(path: PathBuf) -> Self {
-        Self { path, state: None }
+        Self {
+            path,
+            state: None,
+            // Machine identity plus something fresh per manager. The machine
+            // part says which computer left a stray temporary behind; the fresh
+            // part is what keeps two windows on one machine apart, which the
+            // machine id alone cannot do.
+            writer_id: format!("{}-{}", Location::load().device_id(), instance_suffix()),
+            last_seen: None,
+        }
+    }
+
+    /// The temporary file this manager writes through.
+    ///
+    /// Named per writer: a shared `vault.bin.tmp` is one file every machine
+    /// would use, and two saves at once interleave into a rename that produces
+    /// neither document.
+    pub fn temp_path(&self) -> PathBuf {
+        let name = self
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "vault.bin".to_owned());
+        self.path
+            .with_file_name(format!("{name}.{}.tmp", self.writer_id))
+    }
+
+    /// Modified time and length of the vault file, or None if it is not there.
+    fn stamp(&self) -> Option<(SystemTime, u64)> {
+        let meta = std::fs::metadata(&self.path).ok()?;
+        Some((meta.modified().ok()?, meta.len()))
+    }
+
+    /// Has anything written to the vault since this manager last touched it?
+    fn changed_underneath(&self) -> bool {
+        self.stamp() != self.last_seen
+    }
+
+    /// Take in whatever another machine wrote, if anything.
+    ///
+    /// Returns whether the document changed. Cheap when nothing happened: the
+    /// comparison is a `stat`, not another key derivation.
+    pub fn refresh_from_disk(&mut self) -> Result<bool, VaultError> {
+        if self.state.is_none() || !self.changed_underneath() {
+            return Ok(false);
+        }
+        self.absorb_remote()?;
+        Ok(true)
+    }
+
+    /// Merge what is on disk into what is in memory.
+    fn absorb_remote(&mut self) -> Result<(), VaultError> {
+        let state = self.state.as_mut().ok_or(VaultError::Locked)?;
+        let plaintext = load_document(&self.path, &state.password)?;
+        let remote: VaultDocument =
+            serde_json::from_slice(&plaintext).map_err(|_| VaultError::BadFormat)?;
+
+        state.document = merge(state.document.clone(), remote);
+        self.last_seen = self.stamp();
+        Ok(())
     }
 
     pub fn path(&self) -> &std::path::Path {
@@ -57,6 +134,7 @@ impl VaultManager {
     /// state would be worse than either.
     pub fn unlock(&mut self, password: &str) -> Result<(), VaultError> {
         let plaintext = load_document(&self.path, password)?;
+        self.last_seen = self.stamp();
         let mut document: VaultDocument =
             serde_json::from_slice(&plaintext).map_err(|_| VaultError::BadFormat)?;
         document.purge_expired_tombstones(chrono::Utc::now());
@@ -96,6 +174,13 @@ impl VaultManager {
     where
         F: FnOnce(&mut VaultDocument),
     {
+        // Read before write. Another machine sharing this file may have added
+        // an account since this one last looked, and writing over it would lose
+        // that account with no error and no way to notice.
+        if self.state.is_some() && self.changed_underneath() {
+            self.absorb_remote()?;
+        }
+
         let state = self.state.as_mut().ok_or(VaultError::Locked)?;
         change(&mut state.document);
         state.last_activity = Instant::now();
@@ -137,9 +222,19 @@ impl VaultManager {
         idle
     }
 
-    fn write(&self, password: &str, document: &VaultDocument) -> Result<(), VaultError> {
+    fn write(&mut self, password: &str, document: &VaultDocument) -> Result<(), VaultError> {
         let plaintext = serde_json::to_vec(document).map_err(|e| VaultError::Io(e.to_string()))?;
-        save_document(&self.path, password, KdfParams::default(), &plaintext)
+        save_document_to(
+            &self.path,
+            &self.temp_path(),
+            password,
+            KdfParams::default(),
+            &plaintext,
+        )?;
+        // Remember what we just wrote, so our own save does not read as someone
+        // else's change on the next check.
+        self.last_seen = self.stamp();
+        Ok(())
     }
 }
 
@@ -262,5 +357,88 @@ mod tests {
         m.lock();
         m.lock();
         assert!(!m.is_unlocked());
+    }
+
+    fn sample_named(issuer: &str) -> Account {
+        Account::new(
+            issuer.into(),
+            "you@example.com".into(),
+            Secret::from_bytes(b"12345678901234567890".to_vec()),
+        )
+    }
+
+    #[test]
+    fn two_managers_on_one_file_do_not_clobber_each_other() {
+        // The whole point of the plan. Without the re-read, whichever saved
+        // last would win and the other account would be gone.
+        let mut a = manager("shared-a");
+        a.create("master").unwrap();
+        let path = a.path().to_path_buf();
+
+        let mut b = VaultManager::new(path.clone());
+        b.unlock("master").unwrap();
+
+        a.mutate(|doc| doc.upsert(sample_named("Added on A")))
+            .unwrap();
+        b.mutate(|doc| doc.upsert(sample_named("Added on B")))
+            .unwrap();
+
+        let mut check = VaultManager::new(path);
+        check.unlock("master").unwrap();
+        let names: Vec<_> = check
+            .document()
+            .unwrap()
+            .live()
+            .map(|x| x.issuer.clone())
+            .collect();
+
+        assert!(
+            names.contains(&"Added on A".to_string()),
+            "A's account was lost: {names:?}"
+        );
+        assert!(
+            names.contains(&"Added on B".to_string()),
+            "B's account was lost: {names:?}"
+        );
+        cleanup(&check);
+    }
+
+    #[test]
+    fn a_change_made_elsewhere_shows_up_on_refresh() {
+        let mut a = manager("refresh");
+        a.create("master").unwrap();
+        let path = a.path().to_path_buf();
+
+        let mut b = VaultManager::new(path);
+        b.unlock("master").unwrap();
+        b.mutate(|doc| doc.upsert(sample_named("Added on B")))
+            .unwrap();
+
+        assert!(a.refresh_from_disk().unwrap(), "the change went unnoticed");
+        assert_eq!(a.document().unwrap().live().count(), 1);
+        cleanup(&a);
+    }
+
+    #[test]
+    fn refreshing_with_nothing_new_reports_nothing() {
+        let mut a = manager("no-change");
+        a.create("master").unwrap();
+        assert!(!a.refresh_from_disk().unwrap());
+        cleanup(&a);
+    }
+
+    #[test]
+    fn refreshing_a_locked_vault_is_harmless() {
+        let mut a = manager("refresh-locked");
+        assert!(!a.refresh_from_disk().unwrap());
+    }
+
+    #[test]
+    fn two_managers_never_share_a_temporary_file() {
+        // One shared temporary name means two writers interleave into a
+        // corrupt rename.
+        let a = manager("tmpname");
+        let b = VaultManager::new(a.path().to_path_buf());
+        assert_ne!(a.temp_path(), b.temp_path(), "both would use one file");
     }
 }

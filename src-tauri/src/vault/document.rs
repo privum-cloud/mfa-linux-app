@@ -17,9 +17,10 @@ const CURRENT_VERSION: u32 = 1;
 
 /// Everything the vault holds.
 ///
-/// `device_id` is generated once per vault file and never changes. It is not
-/// used yet: it is what a merge will read to tell two machines apart, and
-/// adding it later would mean migrating vaults that already exist.
+/// `device_id` identifies the vault, not the machine — it is generated with the
+/// document and travels with the file, so every machine sharing a vault reports
+/// the same one. Machine identity lives in the local config instead, which never
+/// syncs. This is kept because vaults on disk carry it.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VaultDocument {
     pub version: u32,

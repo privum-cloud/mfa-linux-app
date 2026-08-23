@@ -20,6 +20,22 @@ pub fn save_document(
     params: KdfParams,
     plaintext: &[u8],
 ) -> Result<(), VaultError> {
+    let temporary = path.with_extension("tmp");
+    save_document_to(path, &temporary, password, params, plaintext)
+}
+
+/// As `save_document`, with the temporary file named by the caller.
+///
+/// The name matters once a vault is shared: a single `vault.bin.tmp` is one
+/// file every writer would use, and two saves at once interleave into a rename
+/// that produces neither document.
+pub fn save_document_to(
+    path: &Path,
+    temporary: &Path,
+    password: &str,
+    params: KdfParams,
+    plaintext: &[u8],
+) -> Result<(), VaultError> {
     let params = params.validated()?;
 
     let mut salt = [0u8; 16];
@@ -52,10 +68,9 @@ pub fn save_document(
     }
 
     // Same directory, so the rename stays on one filesystem and is atomic.
-    let temporary = path.with_extension("tmp");
-    write_and_sync(&temporary, &buf)?;
-    std::fs::rename(&temporary, path).map_err(|e| {
-        let _ = std::fs::remove_file(&temporary);
+    write_and_sync(temporary, &buf)?;
+    std::fs::rename(temporary, path).map_err(|e| {
+        let _ = std::fs::remove_file(temporary);
         VaultError::Io(e.to_string())
     })
 }
