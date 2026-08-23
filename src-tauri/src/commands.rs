@@ -9,7 +9,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::import::parse_otpauth;
-use crate::model::{Account, AccountKind};
+use crate::model::{Account, AccountKind, Folder};
 use crate::otp::{seconds_remaining, steam_at, totp_at, Algorithm, Secret};
 use crate::vault::{Settings, VaultDocument, VaultError, VaultManager};
 
@@ -20,6 +20,7 @@ pub struct AccountView {
     pub issuer: String,
     pub label: String,
     pub group: Option<String>,
+    pub folder_id: Option<Uuid>,
     pub kind: AccountKind,
     pub code: String,
     pub seconds_remaining: u32,
@@ -72,6 +73,7 @@ fn view_of(account: &Account, unix_seconds: u64) -> AccountView {
         issuer: account.issuer.clone(),
         label: account.label.clone(),
         group: account.group.clone(),
+        folder_id: account.folder_id,
         kind: account.kind,
         code,
         seconds_remaining: remaining,
@@ -370,6 +372,157 @@ pub fn export_migration_qrs(state: tauri::State<'_, AppState>) -> Result<Vec<Str
         .collect()
 }
 
+/// One row of the folder tree, flattened for rendering.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct FolderView {
+    pub id: Uuid,
+    pub name: String,
+    pub icon: Option<String>,
+    pub parent_id: Option<Uuid>,
+    /// How deep to indent this row.
+    pub depth: u32,
+    pub account_count: u32,
+}
+
+/// Flatten the folder tree depth-first, siblings in name order.
+///
+/// Ordering is case-insensitive and stable for the same reason the account list
+/// is: a tree whose rows move between openings is one you misclick.
+fn folder_views(document: &VaultDocument) -> Vec<FolderView> {
+    fn walk(document: &VaultDocument, parent: Option<Uuid>, depth: u32, out: &mut Vec<FolderView>) {
+        let mut children: Vec<_> = document
+            .live_folders()
+            .filter(|f| f.parent_id == parent)
+            .collect();
+        children.sort_by_key(|f| f.name.to_lowercase());
+
+        for folder in children {
+            out.push(FolderView {
+                id: folder.id,
+                name: folder.name.clone(),
+                icon: folder.icon.clone(),
+                parent_id: folder.parent_id,
+                depth,
+                account_count: document
+                    .live()
+                    .filter(|a| a.folder_id == Some(folder.id))
+                    .count() as u32,
+            });
+            walk(document, Some(folder.id), depth + 1, out);
+        }
+    }
+
+    let mut out = Vec::new();
+    walk(document, None, 0, &mut out);
+    out
+}
+
+#[tauri::command]
+pub fn list_folders(state: tauri::State<'_, AppState>) -> Result<Vec<FolderView>, String> {
+    let guard = vault(&state)?;
+    Ok(folder_views(guard.document().map_err(fail)?))
+}
+
+#[tauri::command]
+pub fn create_folder(
+    state: tauri::State<'_, AppState>,
+    name: String,
+    parent_id: Option<Uuid>,
+) -> Result<(), String> {
+    let name = name.trim().to_owned();
+    if name.is_empty() {
+        return Err("give the folder a name".to_owned());
+    }
+    let mut folder = Folder::new(name);
+    folder.parent_id = parent_id;
+
+    vault(&state)?
+        .mutate(|doc| doc.upsert_folder(folder))
+        .map_err(fail)
+}
+
+/// Fetch a folder to edit, failing with a message rather than silently.
+fn folder_for_edit(guard: &VaultManager, id: Uuid) -> Result<Folder, String> {
+    guard
+        .document()
+        .map_err(fail)?
+        .find_folder(id)
+        .ok_or_else(|| "that folder is no longer in the vault".to_owned())
+        .cloned()
+}
+
+#[tauri::command]
+pub fn rename_folder(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+    name: String,
+) -> Result<(), String> {
+    let name = name.trim().to_owned();
+    if name.is_empty() {
+        return Err("give the folder a name".to_owned());
+    }
+    let mut guard = vault(&state)?;
+    let mut folder = folder_for_edit(&guard, id)?;
+    folder.name = name;
+    folder.touch();
+    guard.mutate(|doc| doc.upsert_folder(folder)).map_err(fail)
+}
+
+#[tauri::command]
+pub fn set_folder_icon(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+    icon: Option<String>,
+) -> Result<(), String> {
+    let mut guard = vault(&state)?;
+    let mut folder = folder_for_edit(&guard, id)?;
+    folder.icon = icon.filter(|i| !i.is_empty());
+    folder.touch();
+    guard.mutate(|doc| doc.upsert_folder(folder)).map_err(fail)
+}
+
+#[tauri::command]
+pub fn move_folder(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+    parent_id: Option<Uuid>,
+) -> Result<(), String> {
+    let mut guard = vault(&state)?;
+    if guard.document().map_err(fail)?.would_cycle(id, parent_id) {
+        return Err("a folder cannot go inside itself".to_owned());
+    }
+    let mut folder = folder_for_edit(&guard, id)?;
+    folder.parent_id = parent_id;
+    folder.touch();
+    guard.mutate(|doc| doc.upsert_folder(folder)).map_err(fail)
+}
+
+/// Delete a folder. Its accounts and subfolders move up; nothing is lost.
+#[tauri::command]
+pub fn remove_folder(state: tauri::State<'_, AppState>, id: Uuid) -> Result<(), String> {
+    vault(&state)?
+        .mutate(|doc| doc.delete_folder(id))
+        .map_err(fail)
+}
+
+#[tauri::command]
+pub fn move_account_to_folder(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+    folder_id: Option<Uuid>,
+) -> Result<(), String> {
+    let mut guard = vault(&state)?;
+    let mut account = guard
+        .document()
+        .map_err(fail)?
+        .find(id)
+        .ok_or_else(|| "that account is no longer in the vault".to_owned())?
+        .clone();
+    account.folder_id = folder_id;
+    account.touch();
+    guard.mutate(|doc| doc.upsert(account)).map_err(fail)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -500,5 +653,51 @@ mod tests {
 
     fn sample_other() -> Account {
         parse_otpauth("otpauth://totp/Google:alice?secret=JBSWY3DPEHPK3PXP").unwrap()
+    }
+
+    #[test]
+    fn folders_are_listed_depth_first_so_the_tree_reads_top_to_bottom() {
+        let mut doc = VaultDocument::new();
+        let clients = Folder::new("Clients".into());
+        let mut one = Folder::new("Example Client".into());
+        one.parent_id = Some(clients.id);
+        let personal = Folder::new("Personal".into());
+        for f in [clients.clone(), one.clone(), personal.clone()] {
+            doc.upsert_folder(f);
+        }
+
+        let rows = folder_views(&doc);
+        let shape: Vec<_> = rows.iter().map(|r| (r.name.as_str(), r.depth)).collect();
+        assert_eq!(
+            shape,
+            vec![("Clients", 0), ("Example Client", 1), ("Personal", 0)]
+        );
+    }
+
+    #[test]
+    fn a_folder_row_counts_the_accounts_inside_it() {
+        let mut doc = VaultDocument::new();
+        let client = Folder::new("Example Client".into());
+        let mut acc = totp_account();
+        acc.folder_id = Some(client.id);
+        let mut gone = sample_other();
+        gone.folder_id = Some(client.id);
+        gone.soft_delete();
+        doc.upsert_folder(client.clone());
+        doc.upsert(acc);
+        doc.upsert(gone);
+
+        let rows = folder_views(&doc);
+        assert_eq!(rows[0].account_count, 1, "a tombstone was counted");
+    }
+
+    #[test]
+    fn sibling_folders_are_ordered_by_name_so_the_tree_does_not_reshuffle() {
+        let mut doc = VaultDocument::new();
+        for name in ["zulu", "Alpha", "middle"] {
+            doc.upsert_folder(Folder::new(name.into()));
+        }
+        let names: Vec<_> = folder_views(&doc).iter().map(|r| r.name.clone()).collect();
+        assert_eq!(names, vec!["Alpha", "middle", "zulu"]);
     }
 }

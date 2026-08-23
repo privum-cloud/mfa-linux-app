@@ -40,6 +40,13 @@ pub fn run() {
             commands::import_from_image,
             commands::import_from_migration_uri,
             commands::export_migration_qrs,
+            commands::list_folders,
+            commands::create_folder,
+            commands::rename_folder,
+            commands::set_folder_icon,
+            commands::move_folder,
+            commands::remove_folder,
+            commands::move_account_to_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tessera");
