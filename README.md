@@ -127,7 +127,7 @@ Grab a package from the [latest release](../../releases/latest).
 ### Debian / Ubuntu (`.deb`)
 
 ```bash
-sudo apt install ./Tessera_0.2.1_amd64.deb
+sudo apt install ./Tessera_0.3.0_amd64.deb
 ```
 
 `apt` rather than `dpkg -i`, so the WebKit and GTK dependencies resolve.
@@ -135,7 +135,7 @@ sudo apt install ./Tessera_0.2.1_amd64.deb
 ### Fedora / RHEL / openSUSE (`.rpm`)
 
 ```bash
-sudo dnf install ./Tessera-0.2.1-1.x86_64.rpm
+sudo dnf install ./Tessera-0.3.0-1.x86_64.rpm
 ```
 
 ### Windows (`.exe`)
@@ -148,8 +148,8 @@ on Windows 10 the installer fetches it if it is missing.
 No installation, no root:
 
 ```bash
-chmod +x Tessera_0.2.1_amd64.AppImage
-./Tessera_0.2.1_amd64.AppImage
+chmod +x Tessera_0.3.0_amd64.AppImage
+./Tessera_0.3.0_amd64.AppImage
 ```
 
 ### Build from source
