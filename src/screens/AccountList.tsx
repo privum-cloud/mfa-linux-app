@@ -27,13 +27,31 @@ export default function AccountList({
   // Read back rather than start empty: this component is unmounted every time
   // the user opens another screen, and starting empty expanded every folder
   // the moment they edited an account.
-  const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
+  //
+  // `null` means nothing has ever been stored — a first run, where every folder
+  // starts collapsed. It is deliberately not the same as an empty set, which
+  // means the user expanded everything and would not thank us for undoing it.
+  const [collapsed, setCollapsed] = useState<Set<string> | null>(readCollapsed);
 
+  // Once the folders arrive on a first run, collapse them and remember it.
   useEffect(() => {
-    if (folders.length > 0) {
-      writeCollapsed(collapsed, folders.map((f) => f.id));
+    if (collapsed === null && folders.length > 0) {
+      setCollapsed(new Set(folders.map((f) => f.id)));
     }
   }, [collapsed, folders]);
+
+  useEffect(() => {
+    if (collapsed !== null && folders.length > 0) {
+      writeCollapsed(
+        collapsed,
+        folders.map((f) => f.id),
+      );
+    }
+  }, [collapsed, folders]);
+
+  /** Before the first run settles, treat everything as collapsed — rendering it
+   *  open for one frame would show a flash of the very thing we are avoiding. */
+  const isCollapsed = (id: string) => (collapsed === null ? true : collapsed.has(id));
 
   const needle = query.trim().toLowerCase();
   const searching = needle.length > 0;
@@ -60,7 +78,7 @@ export default function AccountList({
       let at = folder.parentId;
       let guard = folders.length;
       while (at && guard-- > 0) {
-        if (collapsed.has(at)) {
+        if (isCollapsed(at)) {
           hidden.add(folder.id);
           break;
         }
@@ -73,7 +91,9 @@ export default function AccountList({
   const toggle = (id: string) => {
     onActivity();
     setCollapsed((previous) => {
-      const next = new Set(previous);
+      // A null previous means the first run has not settled; everything is
+      // collapsed, so toggling one starts from all of them.
+      const next = new Set(previous ?? folders.map((f) => f.id));
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -186,7 +206,7 @@ export default function AccountList({
             .filter((f) => !hiddenByAncestor.has(f.id))
             .map((folder) => {
               const inside = matches.filter((a) => a.folderId === folder.id);
-              const isCollapsed = collapsed.has(folder.id);
+              const folderCollapsed = isCollapsed(folder.id);
               return (
                 <li key={folder.id} className="section">
                   <button
@@ -194,16 +214,18 @@ export default function AccountList({
                     type="button"
                     style={{ paddingLeft: 12 + folder.depth * 14 }}
                     onClick={() => toggle(folder.id)}
-                    aria-expanded={!isCollapsed}
+                    aria-expanded={!folderCollapsed}
                   >
-                    <span className="section__twisty">{isCollapsed ? "▸" : "▾"}</span>
+                    <span className="section__twisty">
+                      {folderCollapsed ? "▸" : "▾"}
+                    </span>
                     <span className="section__icon">
                       <FolderIcon icon={folder.icon} size={14} />
                     </span>
                     <span className="section__name">{folder.name}</span>
                     <span className="section__count">{folder.accountCount}</span>
                   </button>
-                  {!isCollapsed && (
+                  {!folderCollapsed && (
                     <ul className="rows rows--nested">
                       {inside.map((a) => row(a, folder.depth * 14))}
                     </ul>

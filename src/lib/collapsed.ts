@@ -2,28 +2,37 @@
  * Which folders the user has collapsed.
  *
  * This lived inside the account list, which meant it was thrown away every time
- * the user opened another screen and came back — collapse a folder, edit an
- * account, and everything was expanded again.
+ * another screen opened — collapse a folder, edit an account, and everything
+ * was expanded again.
  *
  * It belongs in local storage rather than in the vault. It is presentation, not
  * data: it should not travel between machines, should not count as a change
  * worth merging, and should not make the vault rewrite itself every time a
- * triangle is clicked. The identifiers stored here are random UUIDs that say
+ * triangle is clicked. The identifiers kept here are random UUIDs that say
  * nothing without the vault they came from.
  */
 
 const KEY = "tessera.collapsedFolders";
 
-export function readCollapsed(): Set<string> {
+/**
+ * The stored set, or `null` when nothing has ever been stored.
+ *
+ * The difference matters: nothing stored means a first run, where every folder
+ * starts collapsed. An empty set means the user expanded everything, and
+ * undoing that on the next launch would be maddening.
+ */
+export function readCollapsed(): Set<string> | null {
   try {
     const raw = window.localStorage.getItem(KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return new Set();
+    if (raw === null) return null;
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
     return new Set(parsed.filter((id): id is string => typeof id === "string"));
   } catch {
-    // A browser with storage disabled, or a value someone else wrote. Losing
-    // the collapse state is not worth an error the user has to read.
-    return new Set();
+    // Storage disabled, or a value someone else wrote. Losing the collapse
+    // state is not worth an error the user has to read.
+    return null;
   }
 }
 
@@ -37,6 +46,6 @@ export function writeCollapsed(collapsed: Set<string>, knownIds: string[]): void
     const kept = [...collapsed].filter((id) => known.has(id));
     window.localStorage.setItem(KEY, JSON.stringify(kept));
   } catch {
-    // Same reasoning: this is a convenience, not the user's data.
+    // Same reasoning: a convenience, not the user's data.
   }
 }
