@@ -58,6 +58,11 @@ export function useVault() {
           }
           return;
         }
+        // Take in anything another machine wrote before rendering, so a
+        // shared vault converges without the user doing anything.
+        await api.refreshVault().catch(() => {
+          // A failed refresh only means this tick shows slightly stale rows.
+        });
         const [rows, tree] = await Promise.all([
           api.listAccounts(),
           api.listFolders(),
@@ -153,6 +158,15 @@ export function useVault() {
       void refreshAccounts().catch((e: unknown) => setError(String(e)));
     },
     setError: (message: string) => setError(message),
+    setVaultLocation: async (folder: string) => {
+      const ok = await run(() => api.setVaultLocation(folder), false);
+      if (ok) {
+        setAccounts([]);
+        setFolders([]);
+        await refreshStatus();
+      }
+      return ok;
+    },
     clearError: () => setError(null),
   };
 

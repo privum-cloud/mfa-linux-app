@@ -116,6 +116,7 @@ export default function App() {
       <main className="shell">
         <SettingsScreen
           settings={settings}
+          onSetVaultLocation={actions.setVaultLocation}
           error={error}
           onSave={actions.saveSettings}
           onLock={() => {

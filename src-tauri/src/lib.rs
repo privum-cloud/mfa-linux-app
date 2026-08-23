@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 use commands::AppState;
-use vault::{default_vault_path, VaultManager};
+use vault::{Location, VaultManager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,7 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             app.manage(AppState {
-                vault: Mutex::new(VaultManager::new(default_vault_path())),
+                vault: Mutex::new(VaultManager::new(Location::load().vault_path())),
             });
             Ok(())
         })
@@ -48,6 +48,9 @@ pub fn run() {
             commands::move_folder,
             commands::remove_folder,
             commands::move_account_to_folder,
+            commands::vault_location,
+            commands::set_vault_location,
+            commands::refresh_vault,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tessera");

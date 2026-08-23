@@ -194,3 +194,26 @@ export const removeFolder = (id: string) => invoke<void>("remove_folder", { id }
 
 export const moveAccountToFolder = (id: string, folderId: string | null) =>
   invoke<void>("move_account_to_folder", { id, folderId });
+
+export interface VaultLocation {
+  path: string;
+  isCustom: boolean;
+}
+
+const toLocation = (raw: { path: string; is_custom: boolean }): VaultLocation => ({
+  path: raw.path,
+  isCustom: raw.is_custom,
+});
+
+export const vaultLocation = async (): Promise<VaultLocation> =>
+  toLocation(await invoke<{ path: string; is_custom: boolean }>("vault_location"));
+
+export const setVaultLocation = async (folder: string): Promise<VaultLocation> =>
+  toLocation(
+    await invoke<{ path: string; is_custom: boolean }>("set_vault_location", {
+      folder,
+    }),
+  );
+
+/** Take in anything another machine wrote. True when something changed. */
+export const refreshVault = () => invoke<boolean>("refresh_vault");

@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+
+import * as api from "../lib/api";
 
 import type { Settings } from "../lib/api";
 
 interface Props {
   settings: Settings;
+  onSetVaultLocation: (folder: string) => Promise<boolean>;
   error: string | null;
   onSave: (settings: Settings) => Promise<boolean>;
   onLock: () => void;
@@ -25,6 +29,7 @@ const CLIPBOARD_CHOICES = [
 
 export default function SettingsScreen({
   settings,
+  onSetVaultLocation,
   error,
   onSave,
   onLock,
@@ -32,6 +37,24 @@ export default function SettingsScreen({
 }: Props) {
   const [draft, setDraft] = useState(settings);
   const [busy, setBusy] = useState(false);
+  const [location, setLocation] = useState<api.VaultLocation | null>(null);
+
+  useEffect(() => {
+    api.vaultLocation().then(setLocation).catch(() => setLocation(null));
+  }, []);
+
+  const chooseFolder = async () => {
+    const picked = await open({ directory: true, multiple: false });
+    if (typeof picked !== "string") return;
+    setBusy(true);
+    const ok = await onSetVaultLocation(picked);
+    setBusy(false);
+    if (ok) {
+      onDone();
+      return;
+    }
+    api.vaultLocation().then(setLocation).catch(() => {});
+  };
 
   const save = async () => {
     setBusy(true);
@@ -89,6 +112,25 @@ export default function SettingsScreen({
         <span className="setting__hint">
           Some Linux desktops hand the clipboard to whatever copied last, so a
           code may be replaced before Tessera can clear it.
+        </span>
+      </div>
+
+      <div className="setting">
+        <span className="setting__label">Where the vault lives</span>
+        <code className="setting__path">{location?.path ?? "…"}</code>
+        <button
+          className="button button--quiet setting__action"
+          type="button"
+          onClick={() => void chooseFolder()}
+          disabled={busy}
+        >
+          Choose a folder
+        </button>
+        <span className="setting__hint">
+          Put the vault in a folder that already syncs — Drive, Nextcloud,
+          Syncthing — and your machines will share it. Every machine needs the
+          same master password, because the file is sealed with it. Choosing a
+          folder that already holds a vault opens that one instead.
         </span>
       </div>
 

@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::import::parse_otpauth;
 use crate::model::{Account, AccountKind, Folder};
 use crate::otp::{seconds_remaining, steam_at, totp_at, Algorithm, Secret};
-use crate::vault::{Settings, VaultDocument, VaultError, VaultManager};
+use crate::vault::{Location, Settings, VaultDocument, VaultError, VaultManager};
 
 /// Everything the interface needs to draw one row, and nothing more.
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -524,6 +524,76 @@ pub fn move_account_to_folder(
     account.folder_id = folder_id;
     account.touch();
     guard.mutate(|doc| doc.upsert(account)).map_err(fail)
+}
+
+/// Where the vault file is, and whether the user chose that.
+#[derive(Serialize)]
+pub struct VaultLocation {
+    pub path: String,
+    pub is_custom: bool,
+}
+
+#[tauri::command]
+pub fn vault_location(state: tauri::State<'_, AppState>) -> Result<VaultLocation, String> {
+    let guard = vault(&state)?;
+    Ok(VaultLocation {
+        path: guard.path().to_string_lossy().into_owned(),
+        is_custom: Location::load().is_custom(),
+    })
+}
+
+/// Put the vault in a folder of the user's choosing.
+///
+/// Two cases, and the difference matters. A folder that already holds a vault
+/// is *adopted*: the manager points at it and locks, so the user unlocks the
+/// vault they just chose rather than silently carrying on with the old one. An
+/// empty folder gets a *copy* of the current vault, which keeps the original
+/// where it was — moving it would leave nothing behind if the sync folder
+/// turned out to be the wrong choice.
+#[tauri::command]
+pub fn set_vault_location(
+    state: tauri::State<'_, AppState>,
+    folder: String,
+) -> Result<VaultLocation, String> {
+    let target = std::path::Path::new(&folder).join("vault.bin");
+    let mut guard = vault(&state)?;
+    let current = guard.path().to_path_buf();
+
+    if target == current {
+        return Ok(VaultLocation {
+            path: target.to_string_lossy().into_owned(),
+            is_custom: Location::load().is_custom(),
+        });
+    }
+
+    let adopting = target.exists();
+    if !adopting {
+        if !guard.exists() {
+            return Err("there is no vault to move yet".to_owned());
+        }
+        std::fs::create_dir_all(&folder).map_err(|e| format!("could not use that folder: {e}"))?;
+        std::fs::copy(&current, &target)
+            .map_err(|e| format!("could not put the vault there: {e}"))?;
+    }
+
+    let mut location = Location::load();
+    location.set_vault_path(target.clone());
+    location.save().map_err(fail)?;
+
+    // Either way the manager starts again at the new path. Adopting locks,
+    // because the vault there may not open with the password in memory.
+    *guard = VaultManager::new(target.clone());
+
+    Ok(VaultLocation {
+        path: target.to_string_lossy().into_owned(),
+        is_custom: true,
+    })
+}
+
+/// Take in anything another machine wrote. Returns whether something changed.
+#[tauri::command]
+pub fn refresh_vault(state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    vault(&state)?.refresh_from_disk().map_err(fail)
 }
 
 #[cfg(test)]

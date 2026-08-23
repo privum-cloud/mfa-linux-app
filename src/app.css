@@ -632,3 +632,27 @@ button {
 .icon-choice--on {
   color: var(--accent);
 }
+
+.setting__path {
+  display: block;
+  padding: var(--gap-2) var(--gap-3);
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.setting__action {
+  align-self: flex-start;
+  padding-left: 0;
+  padding-right: 0;
+  color: var(--accent);
+}
+
+.setting__action:hover:not(:disabled) {
+  background: none;
+  color: var(--accent-hover);
+}

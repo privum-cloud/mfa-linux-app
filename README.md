@@ -46,7 +46,11 @@ one half of a tablet that only matched its counterpart. That is what a shared se
 - **Encrypted at rest** — argon2id stretches your master password, AES-256-GCM seals the vault.
 - **Locks itself** — after a configurable idle period, clearing the key from memory.
 - **Clipboard that cleans up** — a copied code is cleared after a timeout you choose.
-- **Search and groups** — for when a handful of accounts becomes forty.
+- **Folders** — nest them, give them icons, organise by client or however you work.
+- **Search** — for when a handful of accounts becomes forty.
+- **Share one vault between machines** — put it in a folder that already syncs
+  and Tessera merges rather than overwrites, so neither machine loses an account
+  the other added.
 - **No telemetry, no analytics, no accounts** — Tessera makes no network requests at all.
 
 ## How it works
@@ -62,6 +66,23 @@ account is in both places, both show the same code at the same moment — offlin
 
 Synchronisation only matters when you **add** or **remove** an account. Everything else is
 arithmetic on a number you already have.
+
+## Sharing one vault between machines
+
+Settings → **Where the vault lives** → **Choose a folder**. Point it at anything
+that already syncs — Drive, Nextcloud, Syncthing, a network mount — and your
+machines share one vault.
+
+Every machine needs the same master password, because the file is sealed with it.
+Choosing a folder that already holds a vault opens that one rather than replacing
+it, and choosing an empty folder puts a copy there and leaves the original where
+it was.
+
+Tessera **merges rather than overwrites**. When two machines both changed
+something, the account with more edits behind it wins, an HOTP counter takes
+whichever side is further ahead, and a deletion travels while a later edit still
+beats it. Merging in either order reaches the same vault, which is what makes it
+safe to have both machines running at once.
 
 ## Bringing your accounts over from Google Authenticator
 
