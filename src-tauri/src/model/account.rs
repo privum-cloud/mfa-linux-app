@@ -41,7 +41,13 @@ pub struct Account {
     /// rather than the most recent value — lost increments lock the user out.
     pub counter: u64,
     pub icon: Option<String>,
+    /// Retired in favour of `folder_id`; migrated on unlock and then cleared.
     pub group: Option<String>,
+    /// The folder this account sits in, if any.
+    ///
+    /// `serde(default)` so a vault written before folders existed still opens.
+    #[serde(default)]
+    pub folder_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -65,6 +71,7 @@ impl Account {
             counter: 0,
             icon: None,
             group: None,
+            folder_id: None,
             created_at: now,
             updated_at: now,
             deleted_at: None,
@@ -184,5 +191,18 @@ mod tests {
         assert_eq!(restored.group, original.group);
         assert_eq!(restored.secret, original.secret);
         assert_eq!(restored.revision, original.revision);
+    }
+
+    #[test]
+    fn an_account_written_before_folders_existed_still_opens() {
+        // Vaults on disk predate this field. Losing one to a missing key would
+        // be the worst possible bug in a program that holds second factors.
+        let legacy = r#"{"id":"00000000-0000-4000-8000-000000000000","issuer":"GitHub",
+            "label":"you@example.com","secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "kind":"totp","algorithm":"SHA1","digits":6,"period":30,"counter":0,
+            "icon":null,"group":null,"created_at":"2026-01-01T00:00:00Z",
+            "updated_at":"2026-01-01T00:00:00Z","deleted_at":null,"revision":1}"#;
+        let account: Account = serde_json::from_str(legacy).unwrap();
+        assert_eq!(account.folder_id, None);
     }
 }
