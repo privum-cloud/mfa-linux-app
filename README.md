@@ -4,7 +4,7 @@
 
 # Tessera
 
-**Open-source authenticator for Linux — your two-factor codes on the desktop, in an encrypted vault you hold the key to.**
+**Open-source authenticator for Linux and Windows — your two-factor codes on the desktop, in an encrypted vault you hold the key to.**
 
 Import the accounts you already have in Google Authenticator, generate TOTP and HOTP codes, and send them back to your phone whenever you need to.
 
@@ -18,10 +18,14 @@ Made with ❤️ by **[Privum Cloud »](https://privum.cloud)**
 
 ---
 
-Tessera is a native Linux desktop app for **two-factor authentication codes**. It keeps your
-accounts in a file encrypted with a master password only you know, generates the six-digit
-codes you paste into login forms, and moves accounts to and from the Google Authenticator app
-on your phone.
+Tessera is a native desktop app for **two-factor authentication codes**, on Linux and Windows.
+It keeps your accounts in a file encrypted with a master password only you know, generates the
+six-digit codes you paste into login forms, and moves accounts to and from the Google
+Authenticator app on your phone.
+
+> **Windows is new in 0.3.0.** It is built and packaged by CI on every release, and the code
+> it is built from is the same code the Linux tests cover — but it has had far less running
+> time than Linux has. If something is wrong there, an issue is welcome.
 
 The name is Latin. A *tessera hospitalis* was the token a Roman carried to prove who he was —
 one half of a tablet that only matched its counterpart. That is what a shared secret is.
@@ -154,17 +158,28 @@ chmod +x Tessera_0.3.0_amd64.AppImage
 
 ### Build from source
 
-You need Node 20 and the Tauri system libraries. The Rust toolchain is pinned in
-`rust-toolchain.toml`, so `rustup` will fetch the right one for you:
+You need Node 20. The Rust toolchain is pinned in `rust-toolchain.toml`, so `rustup` fetches
+the right one for you.
+
+On Linux, install what Tauri links against first:
 
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
   libayatana-appindicator3-dev patchelf
+```
 
-git clone https://github.com/privum-cloud/tessera-mfa-linux-app.git
-cd tessera-mfa-linux-app
+On Windows you need the Microsoft C++ build tools and the WebView2 runtime, both of which
+[Tauri's prerequisites page](https://tauri.app/start/prerequisites/) walks through.
+
+Then, on either:
+
+```bash
+git clone https://github.com/privum-cloud/tessera-mfa-app.git
+cd tessera-mfa-app
 npm install
-npm run tauri build -- --bundles deb
+
+npm run tauri build -- --bundles deb     # Linux
+npm run tauri build -- --bundles nsis    # Windows
 
 # or run it live during development:
 npm run tauri dev
