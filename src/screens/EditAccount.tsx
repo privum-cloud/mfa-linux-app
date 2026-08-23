@@ -1,29 +1,29 @@
 import { useState, type FormEvent } from "react";
 
-import type { AccountView } from "../lib/api";
+import type { AccountView, FolderView } from "../lib/api";
 
 interface Props {
   account: AccountView;
+  folders: FolderView[];
   error: string | null;
-  onSave: (
-    issuer: string,
-    label: string,
-    group: string | null,
-  ) => Promise<boolean>;
+  onSave: (issuer: string, label: string) => Promise<boolean>;
+  onMoveToFolder: (folderId: string | null) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
   onDone: () => void;
 }
 
 export default function EditAccount({
   account,
+  folders,
   error,
   onSave,
+  onMoveToFolder,
   onDelete,
   onDone,
 }: Props) {
   const [issuer, setIssuer] = useState(account.issuer);
   const [label, setLabel] = useState(account.label);
-  const [group, setGroup] = useState(account.group ?? "");
+
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -31,7 +31,7 @@ export default function EditAccount({
     event.preventDefault();
     if (busy) return;
     setBusy(true);
-    const ok = await onSave(issuer.trim(), label.trim(), group.trim() || null);
+    const ok = await onSave(issuer.trim(), label.trim());
     setBusy(false);
     if (ok) onDone();
   };
@@ -69,13 +69,21 @@ export default function EditAccount({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
-        <input
-          className="field"
-          placeholder="Group, optional"
-          aria-label="Group"
-          value={group}
-          onChange={(e) => setGroup(e.target.value)}
-        />
+        <label className="setting">
+          <span className="setting__label">Folder</span>
+          <select
+            className="field"
+            value={account.folderId ?? ""}
+            onChange={(e) => void onMoveToFolder(e.target.value || null)}
+          >
+            <option value="">No folder</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {"\u00a0\u00a0".repeat(f.depth) + f.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {error && <p className="error">{error}</p>}
 

@@ -5,6 +5,7 @@ import type { AccountView } from "./lib/api";
 import AccountList from "./screens/AccountList";
 import AddAccount from "./screens/AddAccount";
 import EditAccount from "./screens/EditAccount";
+import FolderEditor from "./screens/FolderEditor";
 import SettingsScreen from "./screens/SettingsScreen";
 import ImportExport from "./screens/ImportExport";
 import Unlock from "./screens/Unlock";
@@ -14,10 +15,11 @@ type Screen =
   | { name: "add" }
   | { name: "edit"; account: AccountView }
   | { name: "settings" }
+  | { name: "folders" }
   | { name: "transfer" };
 
 export default function App() {
-  const { status, accounts, settings, error, actions } = useVault();
+  const { status, accounts, folders, settings, error, actions } = useVault();
   const [screen, setScreen] = useState<Screen>({ name: "list" });
 
   // The very first render, before the core has answered.
@@ -63,9 +65,13 @@ export default function App() {
       <main className="shell">
         <EditAccount
           account={live}
+          folders={folders}
           error={error}
-          onSave={(issuer, label, group) =>
-            actions.update(live.id, issuer, label, group)
+          onSave={(issuer, label) =>
+            actions.update(live.id, issuer, label, null)
+          }
+          onMoveToFolder={(folderId) =>
+            actions.moveAccountToFolder(live.id, folderId)
           }
           onDelete={() => actions.remove(live.id)}
           onDone={back}
@@ -81,6 +87,23 @@ export default function App() {
           error={error}
           onImported={actions.refresh}
           onError={actions.setError}
+          onDone={back}
+        />
+      </main>
+    );
+  }
+
+  if (screen.name === "folders") {
+    return (
+      <main className="shell">
+        <FolderEditor
+          folders={folders}
+          error={error}
+          onCreate={actions.createFolder}
+          onRename={actions.renameFolder}
+          onSetIcon={actions.setFolderIcon}
+          onMove={actions.moveFolder}
+          onRemove={actions.removeFolder}
           onDone={back}
         />
       </main>
@@ -111,6 +134,15 @@ export default function App() {
         <button
           className="header__action"
           type="button"
+          onClick={() => setScreen({ name: "folders" })}
+          aria-label="Folders"
+          title="Folders"
+        >
+          🗂
+        </button>
+        <button
+          className="header__action"
+          type="button"
           onClick={() => setScreen({ name: "settings" })}
           aria-label="Settings"
           title="Settings"
@@ -132,6 +164,7 @@ export default function App() {
         {error && <p className="error error--inline">{error}</p>}
         <AccountList
           accounts={accounts}
+          folders={folders}
           clipboardClearSecs={settings?.clipboardClearSecs ?? 20}
           onEdit={(account) => setScreen({ name: "edit", account })}
           onActivity={actions.noteActivity}

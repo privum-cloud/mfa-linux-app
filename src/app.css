@@ -463,3 +463,155 @@ button {
   color: var(--text-dim);
   font-size: 12.5px;
 }
+
+/* ---------- folders ---------- */
+
+.section {
+  list-style: none;
+}
+
+.section__header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  width: 100%;
+  padding: var(--gap-2) var(--gap-3);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-sm);
+  transition: background var(--speed), color var(--speed);
+}
+
+.section__header:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Ungrouped is a label, not a control — it has nothing to collapse. */
+.section__header--plain {
+  cursor: default;
+}
+
+.section__header--plain:hover {
+  background: none;
+  color: var(--text-dim);
+}
+
+.section__twisty {
+  width: 10px;
+  flex: none;
+  font-size: 10px;
+}
+
+.section__icon {
+  flex: none;
+}
+
+.section__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.section__count {
+  flex: none;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.rows--nested {
+  padding: 0;
+}
+
+.row__folder {
+  color: var(--text-faint);
+}
+
+.folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-1);
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  width: 100%;
+  padding: var(--gap-2) var(--gap-3);
+  border-radius: var(--radius-sm);
+  transition: background var(--speed);
+}
+
+.folder-row:hover {
+  background: var(--surface);
+}
+
+.folder-row__icon {
+  flex: none;
+}
+
+.folder-row__name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-row__count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.folder-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+  padding: var(--gap-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.row-inline {
+  display: flex;
+  gap: var(--gap-2);
+}
+
+.row-inline .field {
+  flex: 1;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--gap-1);
+}
+
+.icon-choice {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  font-size: 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: background var(--speed), border-color var(--speed);
+}
+
+.icon-choice:hover {
+  background: var(--surface-hover);
+}
+
+.icon-choice--on {
+  background: rgba(61, 125, 255, 0.16);
+  border-color: var(--accent);
+}

@@ -11,6 +11,7 @@ export interface AccountView {
   issuer: string;
   label: string;
   group: string | null;
+  folderId: string | null;
   kind: AccountKind;
   code: string;
   /** Zero for HOTP, which does not expire. */
@@ -33,6 +34,7 @@ interface RawAccountView {
   issuer: string;
   label: string;
   group: string | null;
+  folder_id: string | null;
   kind: AccountKind;
   code: string;
   seconds_remaining: number;
@@ -49,6 +51,7 @@ const toAccount = (raw: RawAccountView): AccountView => ({
   issuer: raw.issuer,
   label: raw.label,
   group: raw.group,
+  folderId: raw.folder_id,
   kind: raw.kind,
   code: raw.code,
   secondsRemaining: raw.seconds_remaining,
@@ -144,3 +147,59 @@ export const importFromMigrationUri = async (
 
 /** PNG data URLs. The payload never crosses as text — it is rendered in Rust. */
 export const exportMigrationQrs = () => invoke<string[]>("export_migration_qrs");
+
+/** The set a folder icon can be chosen from.
+ *
+ *  Emoji rather than an icon font or a sprite sheet: the content security
+ *  policy is default-src 'self', so anything else would be another asset to
+ *  ship and another thing to fail to load. */
+export const FOLDER_ICONS = [
+  "📁", "🏢", "🏦", "💼", "🔒", "☁️", "🖥️", "🌐",
+  "🛒", "✈️", "🎮", "📧", "⚙️", "👤", "🔑", "⭐",
+];
+
+export interface FolderView {
+  id: string;
+  name: string;
+  icon: string | null;
+  parentId: string | null;
+  /** How deep to indent this row. */
+  depth: number;
+  accountCount: number;
+}
+
+interface RawFolderView {
+  id: string;
+  name: string;
+  icon: string | null;
+  parent_id: string | null;
+  depth: number;
+  account_count: number;
+}
+
+export const listFolders = async (): Promise<FolderView[]> =>
+  (await invoke<RawFolderView[]>("list_folders")).map((f) => ({
+    id: f.id,
+    name: f.name,
+    icon: f.icon,
+    parentId: f.parent_id,
+    depth: f.depth,
+    accountCount: f.account_count,
+  }));
+
+export const createFolder = (name: string, parentId: string | null) =>
+  invoke<void>("create_folder", { name, parentId });
+
+export const renameFolder = (id: string, name: string) =>
+  invoke<void>("rename_folder", { id, name });
+
+export const setFolderIcon = (id: string, icon: string | null) =>
+  invoke<void>("set_folder_icon", { id, icon });
+
+export const moveFolder = (id: string, parentId: string | null) =>
+  invoke<void>("move_folder", { id, parentId });
+
+export const removeFolder = (id: string) => invoke<void>("remove_folder", { id });
+
+export const moveAccountToFolder = (id: string, folderId: string | null) =>
+  invoke<void>("move_account_to_folder", { id, folderId });

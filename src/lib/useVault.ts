@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "./api";
-import type { AccountView, ManualAccount, Settings, VaultStatus } from "./api";
+import type {
+  AccountView,
+  FolderView,
+  ManualAccount,
+  Settings,
+  VaultStatus,
+} from "./api";
 
 /**
  * Application state: whether the vault is open, and what is in it.
@@ -13,6 +19,7 @@ import type { AccountView, ManualAccount, Settings, VaultStatus } from "./api";
 export function useVault() {
   const [status, setStatus] = useState<VaultStatus | null>(null);
   const [accounts, setAccounts] = useState<AccountView[]>([]);
+  const [folders, setFolders] = useState<FolderView[]>([]);
   const [settings, setSettingsState] = useState<Settings | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +32,12 @@ export function useVault() {
   }, []);
 
   const refreshAccounts = useCallback(async () => {
-    setAccounts(await api.listAccounts());
+    // Folders come along on every refresh: a rename or a move has to show up in
+    // the same paint as the accounts it reorganises, or the list flickers
+    // through an inconsistent state.
+    const [rows, tree] = await Promise.all([api.listAccounts(), api.listFolders()]);
+    setAccounts(rows);
+    setFolders(tree);
   }, []);
 
   useEffect(() => {
@@ -46,8 +58,14 @@ export function useVault() {
           }
           return;
         }
-        const rows = await api.listAccounts();
-        if (!cancelled) setAccounts(rows);
+        const [rows, tree] = await Promise.all([
+          api.listAccounts(),
+          api.listFolders(),
+        ]);
+        if (!cancelled) {
+          setAccounts(rows);
+          setFolders(tree);
+        }
       } catch (e: unknown) {
         if (!cancelled) setError(String(e));
       }
@@ -102,6 +120,7 @@ export function useVault() {
     lock: async () => {
       await run(() => api.lockVault(), false);
       setAccounts([]);
+      setFolders([]);
       await refreshStatus();
     },
     addFromUri: (uri: string) => run(() => api.addAccountFromUri(uri)),
@@ -110,6 +129,16 @@ export function useVault() {
     update: (id: string, issuer: string, label: string, group: string | null) =>
       run(() => api.updateAccount(id, issuer, label, group)),
     remove: (id: string) => run(() => api.deleteAccount(id)),
+    createFolder: (name: string, parentId: string | null) =>
+      run(() => api.createFolder(name, parentId)),
+    renameFolder: (id: string, name: string) => run(() => api.renameFolder(id, name)),
+    setFolderIcon: (id: string, icon: string | null) =>
+      run(() => api.setFolderIcon(id, icon)),
+    moveFolder: (id: string, parentId: string | null) =>
+      run(() => api.moveFolder(id, parentId)),
+    removeFolder: (id: string) => run(() => api.removeFolder(id)),
+    moveAccountToFolder: (id: string, folderId: string | null) =>
+      run(() => api.moveAccountToFolder(id, folderId)),
     saveSettings: (next: Settings) =>
       run(async () => {
         setSettingsState(await api.setSettings(next));
@@ -127,5 +156,5 @@ export function useVault() {
     clearError: () => setError(null),
   };
 
-  return { status, accounts, settings, error, actions };
+  return { status, accounts, folders, settings, error, actions };
 }
