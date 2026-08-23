@@ -133,8 +133,8 @@ You need Node 20 and the Tauri system libraries. The Rust toolchain is pinned in
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
   libayatana-appindicator3-dev patchelf
 
-git clone https://github.com/privum-cloud/mfa-linux-app.git
-cd mfa-linux-app
+git clone https://github.com/privum-cloud/tessera-mfa-linux-app.git
+cd tessera-mfa-linux-app
 npm install
 npm run tauri build -- --bundles deb
 
