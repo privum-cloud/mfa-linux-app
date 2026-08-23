@@ -28,11 +28,13 @@ one half of a tablet that only matched its counterpart. That is what a shared se
 
 ## Screenshots
 
-| Your accounts | Set a master password |
+| Accounts in folders | Organising folders |
 | :--: | :--: |
-| ![The Tessera account list, showing six-digit codes with countdown rings](images/tessera-list.png) | ![Tessera asking for a new master password on first run](images/tessera-firstrun.png) |
+| ![The Tessera account list, with accounts grouped into collapsible folders and six-digit codes beside countdown rings](images/tessera-list.png) | ![The Tessera folder screen, listing nested folders with icons and account counts](images/tessera-folders.png) |
 | **Import from Google Authenticator** | **Send accounts back to a phone** |
-| ![The Tessera import screen, offering a file picker and a paste field](images/tessera-transfer.png) | ![Tessera showing Google Authenticator migration QR codes for a phone to scan](images/tessera-export.png) |
+| ![The Tessera import screen, offering a file picker and a paste field](images/tessera-transfer.png) | ![Tessera showing a Google Authenticator migration QR code for a phone to scan](images/tessera-export.png) |
+| **Settings, including where the vault lives** | **Set a master password** |
+| ![Tessera settings, showing the auto-lock and clipboard timeouts and the folder the vault is kept in](images/tessera-settings.png) | ![Tessera asking for a new master password on first run](images/tessera-firstrun.png) |
 
 ## Features
 
@@ -125,7 +127,7 @@ Grab a package from the [latest release](../../releases/latest).
 ### Debian / Ubuntu (`.deb`)
 
 ```bash
-sudo apt install ./Tessera_0.1.0_amd64.deb
+sudo apt install ./Tessera_0.2.0_amd64.deb
 ```
 
 `apt` rather than `dpkg -i`, so the WebKit and GTK dependencies resolve.
@@ -133,7 +135,7 @@ sudo apt install ./Tessera_0.1.0_amd64.deb
 ### Fedora / RHEL / openSUSE (`.rpm`)
 
 ```bash
-sudo dnf install ./Tessera-0.1.0-1.x86_64.rpm
+sudo dnf install ./Tessera-0.2.0-1.x86_64.rpm
 ```
 
 ### Any Linux (`.AppImage`)
@@ -141,8 +143,8 @@ sudo dnf install ./Tessera-0.1.0-1.x86_64.rpm
 No installation, no root:
 
 ```bash
-chmod +x Tessera_0.1.0_amd64.AppImage
-./Tessera_0.1.0_amd64.AppImage
+chmod +x Tessera_0.2.0_amd64.AppImage
+./Tessera_0.2.0_amd64.AppImage
 ```
 
 ### Build from source

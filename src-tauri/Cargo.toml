@@ -1,6 +1,6 @@
 [package]
 name = "tessera"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tessera — open-source authenticator for Linux"
 authors = ["Privum Cloud"]
 license = "GPL-3.0-only"

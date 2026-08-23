@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 import CountdownRing from "../components/CountdownRing";
 import FolderIcon from "../components/FolderIcon";
+import { readCollapsed, writeCollapsed } from "../lib/collapsed";
 import type { AccountView, FolderView } from "../lib/api";
 
 interface Props {
@@ -23,7 +24,16 @@ export default function AccountList({
   const [query, setQuery] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Read back rather than start empty: this component is unmounted every time
+  // the user opens another screen, and starting empty expanded every folder
+  // the moment they edited an account.
+  const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
+
+  useEffect(() => {
+    if (folders.length > 0) {
+      writeCollapsed(collapsed, folders.map((f) => f.id));
+    }
+  }, [collapsed, folders]);
 
   const needle = query.trim().toLowerCase();
   const searching = needle.length > 0;
