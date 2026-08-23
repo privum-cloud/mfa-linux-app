@@ -237,7 +237,10 @@ pub fn set_settings(
 ) -> Result<Settings, String> {
     let clean = settings.validated();
     vault(&state)?
-        .mutate(|doc| doc.settings = clean)
+        .mutate(|doc| {
+            doc.settings = clean;
+            doc.settings_revision += 1;
+        })
         .map_err(fail)?;
     Ok(clean)
 }

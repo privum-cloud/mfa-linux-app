@@ -2,6 +2,7 @@ mod commands;
 pub mod import;
 pub mod model;
 pub mod otp;
+pub mod sync;
 pub mod vault;
 
 use std::sync::Mutex;

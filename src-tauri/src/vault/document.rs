@@ -31,6 +31,11 @@ pub struct VaultDocument {
     /// `serde(default)` so a vault written before settings existed still opens.
     #[serde(default)]
     pub settings: Settings,
+    /// Bumped whenever settings change, so a merge can tell which side is newer.
+    /// Settings are one value rather than a collection, so there is no
+    /// per-field revision to compare and this counter stands in for it.
+    #[serde(default)]
+    pub settings_revision: u64,
 }
 
 impl VaultDocument {
@@ -41,6 +46,7 @@ impl VaultDocument {
             accounts: Vec::new(),
             folders: Vec::new(),
             settings: Settings::default(),
+            settings_revision: 0,
         }
     }
 
