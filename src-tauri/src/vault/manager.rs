@@ -60,6 +60,7 @@ impl VaultManager {
         let mut document: VaultDocument =
             serde_json::from_slice(&plaintext).map_err(|_| VaultError::BadFormat)?;
         document.purge_expired_tombstones(chrono::Utc::now());
+        document.migrate_groups_to_folders();
 
         self.state = Some(Unlocked {
             password: Zeroizing::new(password.to_owned()),
