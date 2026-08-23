@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 import CountdownRing from "../components/CountdownRing";
+import FolderIcon from "../components/FolderIcon";
 import type { AccountView, FolderView } from "../lib/api";
 
 interface Props {
@@ -186,7 +187,9 @@ export default function AccountList({
                     aria-expanded={!isCollapsed}
                   >
                     <span className="section__twisty">{isCollapsed ? "▸" : "▾"}</span>
-                    <span className="section__icon">{folder.icon ?? "📁"}</span>
+                    <span className="section__icon">
+                      <FolderIcon icon={folder.icon} size={14} />
+                    </span>
                     <span className="section__name">{folder.name}</span>
                     <span className="section__count">{folder.accountCount}</span>
                   </button>

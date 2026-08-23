@@ -615,3 +615,20 @@ button {
   background: rgba(61, 125, 255, 0.16);
   border-color: var(--accent);
 }
+
+/* Icons are drawn inline and inherit their colour from the row. */
+.section__icon,
+.folder-row__icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-dim);
+}
+
+.section__header:hover .section__icon,
+.folder-row:hover .folder-row__icon {
+  color: var(--text);
+}
+
+.icon-choice--on {
+  color: var(--accent);
+}

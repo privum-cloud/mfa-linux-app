@@ -1,6 +1,10 @@
 import { useState } from "react";
 
-import { FOLDER_ICONS, type FolderView } from "../lib/api";
+import FolderIcon, {
+  FOLDER_ICONS,
+  FOLDER_ICON_LABELS,
+} from "../components/FolderIcon";
+import type { FolderView } from "../lib/api";
 
 interface Props {
   folders: FolderView[];
@@ -125,7 +129,8 @@ export default function FolderEditor({
                           className={`icon-choice${
                             folder.icon === icon ? " icon-choice--on" : ""
                           }`}
-                          aria-label={`Use ${icon}`}
+                          aria-label={FOLDER_ICON_LABELS[icon] ?? icon}
+                          title={FOLDER_ICON_LABELS[icon] ?? icon}
                           aria-pressed={folder.icon === icon}
                           onClick={() =>
                             void guard(() =>
@@ -133,7 +138,7 @@ export default function FolderEditor({
                             )
                           }
                         >
-                          {icon}
+                          <FolderIcon icon={icon} size={17} />
                         </button>
                       ))}
                     </div>
@@ -210,7 +215,9 @@ export default function FolderEditor({
                     type="button"
                     onClick={() => startEditing(folder)}
                   >
-                    <span className="folder-row__icon">{folder.icon ?? "📁"}</span>
+                    <span className="folder-row__icon">
+                      <FolderIcon icon={folder.icon} />
+                    </span>
                     <span className="folder-row__name">{folder.name}</span>
                     <span className="folder-row__count">{folder.accountCount}</span>
                   </button>

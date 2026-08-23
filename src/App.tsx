@@ -5,6 +5,7 @@ import type { AccountView } from "./lib/api";
 import AccountList from "./screens/AccountList";
 import AddAccount from "./screens/AddAccount";
 import EditAccount from "./screens/EditAccount";
+import FolderIcon from "./components/FolderIcon";
 import FolderEditor from "./screens/FolderEditor";
 import SettingsScreen from "./screens/SettingsScreen";
 import ImportExport from "./screens/ImportExport";
@@ -138,7 +139,7 @@ export default function App() {
           aria-label="Folders"
           title="Folders"
         >
-          🗂
+          <FolderIcon icon="folder" size={17} />
         </button>
         <button
           className="header__action"
@@ -147,7 +148,7 @@ export default function App() {
           aria-label="Settings"
           title="Settings"
         >
-          ⚙
+          <FolderIcon icon="gear" size={16} />
         </button>
         <button
           className="header__action header__action--primary"

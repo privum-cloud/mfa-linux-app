@@ -148,15 +148,6 @@ export const importFromMigrationUri = async (
 /** PNG data URLs. The payload never crosses as text — it is rendered in Rust. */
 export const exportMigrationQrs = () => invoke<string[]>("export_migration_qrs");
 
-/** The set a folder icon can be chosen from.
- *
- *  Emoji rather than an icon font or a sprite sheet: the content security
- *  policy is default-src 'self', so anything else would be another asset to
- *  ship and another thing to fail to load. */
-export const FOLDER_ICONS = [
-  "📁", "🏢", "🏦", "💼", "🔒", "☁️", "🖥️", "🌐",
-  "🛒", "✈️", "🎮", "📧", "⚙️", "👤", "🔑", "⭐",
-];
 
 export interface FolderView {
   id: string;
