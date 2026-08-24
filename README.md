@@ -23,7 +23,7 @@ It keeps your accounts in a file encrypted with a master password only you know,
 six-digit codes you paste into login forms, and moves accounts to and from the Google
 Authenticator app on your phone.
 
-> **Windows is new in 0.3.0.** It is built and packaged by CI on every release, and the code
+> **Windows is new in 0.3.1.** It is built and packaged by CI on every release, and the code
 > it is built from is the same code the Linux tests cover — but it has had far less running
 > time than Linux has. If something is wrong there, an issue is welcome.
 
@@ -132,7 +132,7 @@ Grab a package from the [latest release](../../releases/latest).
 ### Debian / Ubuntu (`.deb`)
 
 ```bash
-sudo apt install ./Tessera_0.3.0_amd64.deb
+sudo apt install ./Tessera_0.3.1_amd64.deb
 ```
 
 `apt` rather than `dpkg -i`, so the WebKit and GTK dependencies resolve.
@@ -140,7 +140,7 @@ sudo apt install ./Tessera_0.3.0_amd64.deb
 ### Fedora / RHEL / openSUSE (`.rpm`)
 
 ```bash
-sudo dnf install ./Tessera-0.3.0-1.x86_64.rpm
+sudo dnf install ./Tessera-0.3.1-1.x86_64.rpm
 ```
 
 ### Windows (`.exe`)
@@ -153,8 +153,8 @@ on Windows 10 the installer fetches it if it is missing.
 No installation, no root:
 
 ```bash
-chmod +x Tessera_0.3.0_amd64.AppImage
-./Tessera_0.3.0_amd64.AppImage
+chmod +x Tessera_0.3.1_amd64.AppImage
+./Tessera_0.3.1_amd64.AppImage
 ```
 
 ### Build from source
