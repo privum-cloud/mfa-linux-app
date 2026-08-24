@@ -14,11 +14,17 @@ interface Props {
   onDone: () => void;
 }
 
+// The vault caps this at 24 hours, so that is where the list stops. Anything
+// longer would be silently clamped, which is worse than not offering it.
 const IDLE_CHOICES = [
   { secs: 60, label: "1 minute" },
   { secs: 300, label: "5 minutes" },
-  { secs: 900, label: "15 minutes" },
+  { secs: 600, label: "10 minutes" },
+  { secs: 1800, label: "30 minutes" },
   { secs: 3600, label: "1 hour" },
+  { secs: 14400, label: "4 hours" },
+  { secs: 43200, label: "12 hours" },
+  { secs: 86400, label: "24 hours" },
 ];
 
 const CLIPBOARD_CHOICES = [
@@ -86,8 +92,11 @@ export default function SettingsScreen({
           ))}
         </select>
         <span className="setting__hint">
-          Tessera locks itself when nothing has happened for this long. You will
-          need your master password again.
+          Tessera locks itself when nothing has happened for this long, and asks
+          for your master password again. Time the machine spends asleep counts.
+          While it is unlocked your accounts are decrypted in memory, so a long
+          setting trades the typing for anyone who reaches the machine being able
+          to read your codes.
         </span>
       </div>
 

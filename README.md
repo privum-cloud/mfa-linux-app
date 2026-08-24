@@ -50,7 +50,8 @@ one half of a tablet that only matched its counterpart. That is what a shared se
   scan what it produces.
 - **Add accounts by hand** — paste an `otpauth://` link or type the secret.
 - **Encrypted at rest** — argon2id stretches your master password, AES-256-GCM seals the vault.
-- **Locks itself** — after a configurable idle period, clearing the key from memory.
+- **Locks itself** — after an idle period you choose, from a minute to a day, clearing
+  the key from memory. Time the machine spends suspended counts towards it.
 - **Clipboard that cleans up** — a copied code is cleared after a timeout you choose.
 - **Folders** — nest them, give them icons, organise by client or however you work.
 - **Search** — for when a handful of accounts becomes forty.

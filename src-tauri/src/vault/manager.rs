@@ -39,7 +39,16 @@ pub fn default_vault_path() -> PathBuf {
 struct Unlocked {
     password: Zeroizing<String>,
     document: VaultDocument,
+    /// Monotonic, so a clock change cannot postpone a lock.
     last_activity: Instant,
+    /// Wall clock, so time the machine spent suspended still counts.
+    ///
+    /// `Instant` is `CLOCK_MONOTONIC`, which does not advance while a machine
+    /// is suspended. Without this, closing a laptop lid with the vault open and
+    /// reopening it hours later left the vault open — the idle timer believed
+    /// seconds had passed. Neither clock is trustworthy alone, so whichever
+    /// says the vault should be locked wins.
+    last_activity_wall: SystemTime,
 }
 
 /// The vault, locked or open.
@@ -135,6 +144,7 @@ impl VaultManager {
             password: Zeroizing::new(password.to_owned()),
             document,
             last_activity: Instant::now(),
+            last_activity_wall: SystemTime::now(),
         });
         Ok(())
     }
@@ -153,6 +163,7 @@ impl VaultManager {
             password: Zeroizing::new(password.to_owned()),
             document,
             last_activity: Instant::now(),
+            last_activity_wall: SystemTime::now(),
         });
         Ok(())
     }
@@ -193,6 +204,7 @@ impl VaultManager {
         let state = self.state.as_mut().ok_or(VaultError::Locked)?;
         change(&mut state.document);
         state.last_activity = Instant::now();
+        state.last_activity_wall = SystemTime::now();
 
         let password = state.password.clone();
         let document = state.document.clone();
@@ -216,13 +228,25 @@ impl VaultManager {
     pub fn touch_activity(&mut self) {
         if let Some(state) = self.state.as_mut() {
             state.last_activity = Instant::now();
+            state.last_activity_wall = SystemTime::now();
         }
     }
 
     /// Lock if nothing has happened for `timeout`. Returns whether it locked.
+    ///
+    /// Two clocks, because neither is enough on its own. The monotonic one
+    /// cannot be fooled by the system clock changing, but it stops while the
+    /// machine is suspended — a laptop closed overnight would wake with the
+    /// vault still open. The wall clock counts suspended time but can jump.
+    /// Whichever says to lock, wins; a backwards jump is treated as no time
+    /// passing rather than as a reason to stay open.
     pub fn lock_if_idle(&mut self, timeout: Duration) -> bool {
         let idle = match self.state.as_ref() {
-            Some(state) => state.last_activity.elapsed() >= timeout,
+            Some(state) => {
+                let monotonic = state.last_activity.elapsed();
+                let wall = state.last_activity_wall.elapsed().unwrap_or(Duration::ZERO);
+                monotonic >= timeout || wall >= timeout
+            }
             None => return false,
         };
         if idle {
@@ -449,5 +473,44 @@ mod tests {
         let a = manager("tmpname");
         let b = VaultManager::new(a.path().to_path_buf());
         assert_ne!(a.temp_path(), b.temp_path(), "both would use one file");
+    }
+
+    #[test]
+    fn time_spent_suspended_still_locks_the_vault() {
+        // Instant is CLOCK_MONOTONIC, which stops while a machine is suspended.
+        // Before the wall clock was consulted too, closing a laptop lid with the
+        // vault open and reopening it hours later left it open, because the
+        // monotonic clock believed almost no time had passed.
+        let mut m = manager("suspended");
+        m.create("master").unwrap();
+
+        // The monotonic clock has barely moved, as it would after a resume.
+        // Only the wall clock knows the machine was away.
+        m.state.as_mut().unwrap().last_activity_wall =
+            SystemTime::now() - Duration::from_secs(9 * 3600);
+
+        assert!(
+            m.lock_if_idle(Duration::from_secs(300)),
+            "hours of suspend did not lock the vault"
+        );
+        assert!(!m.is_unlocked());
+        cleanup(&m);
+    }
+
+    #[test]
+    fn a_clock_jumped_backwards_does_not_keep_the_vault_open() {
+        // A wall clock that moved backwards yields no elapsed time. The
+        // monotonic clock has to carry the decision on its own, rather than the
+        // pair of them agreeing to stay open.
+        let mut m = manager("clock-back");
+        m.create("master").unwrap();
+        m.state.as_mut().unwrap().last_activity_wall =
+            SystemTime::now() + Duration::from_secs(3600);
+
+        assert!(
+            m.lock_if_idle(Duration::ZERO),
+            "a future wall clock defeated the idle lock"
+        );
+        cleanup(&m);
     }
 }
