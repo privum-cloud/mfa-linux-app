@@ -203,6 +203,22 @@ mod tests {
         );
     }
 
+    #[test]
+    fn flattening_leaves_an_opaque_black_and_white_picture_untouched() {
+        // The export path renders Luma8 and reads it straight back, so the
+        // flattening step must be exactly neutral on an opaque picture. A
+        // rounding slip here would move every module a shade and is the kind of
+        // thing that decodes fine until one day it does not.
+        let mut checks = image::RgbaImage::new(2, 1);
+        checks.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+        checks.put_pixel(1, 0, image::Rgba([255, 255, 255, 255]));
+
+        let grey = grey_on_white(&image::DynamicImage::ImageRgba8(checks));
+
+        assert_eq!(grey.get_pixel(0, 0).0[0], 0, "black drifted");
+        assert_eq!(grey.get_pixel(1, 0).0[0], 255, "white drifted");
+    }
+
     /// Redraw a rendered code with its light squares fully transparent.
     fn on_transparent(png: &[u8]) -> Vec<u8> {
         let grey = image::load_from_memory(png).unwrap().to_luma8();
