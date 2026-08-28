@@ -58,7 +58,10 @@ one half of a tablet that only matched its counterpart. That is what a shared se
 - **Share one vault between machines** — put it in a folder that already syncs
   and Tessera merges rather than overwrites, so neither machine loses an account
   the other added.
-- **No telemetry, no analytics, no accounts** — Tessera makes no network requests at all.
+- **Keeps itself up to date** — it asks GitHub whether a newer release exists and offers to
+  install it. You can turn that off.
+- **No telemetry, no analytics, no accounts** — the update check is the only request Tessera
+  ever makes, and it sends nothing about you.
 
 ## How it works
 
@@ -124,6 +127,31 @@ Google Authenticator migration QR codes, ten accounts per code. On the phone, ch
 **Import accounts** in Google Authenticator and scan them.
 
 Those codes carry every secret in your vault. Show them only to your own phone.
+
+## Updates
+
+Tessera asks GitHub whether a newer release exists when it starts, and tells you if there is
+one. Nothing about you or your accounts goes with that request — it is a request for the
+release list, the same one your browser would make. It is the only network request Tessera
+makes, and **Settings → Check for updates** turns it off, after which it makes none at all.
+
+If you accept an update, what happens next depends on how you installed it:
+
+| Installed from | What updating does |
+| --- | --- |
+| `.AppImage` | Replaces the file and restarts. Nothing is asked of you. |
+| Windows `.exe` | Runs the new installer over the top and restarts. |
+| `.deb` / `.rpm` | Your system asks for an administrator password first, because your package manager owns those files. |
+
+Every package is signed, and Tessera checks that signature against a key built into it before
+installing anything. An update it cannot verify is refused.
+
+Two honest notes. **The first version you install has to be installed by hand** — the machinery
+that updates Tessera has to already be inside it, so anything installed before this feature
+existed cannot pull itself forward. And on `.deb`/`.rpm` the update runs `dpkg`/`rpm` directly,
+which does not resolve dependencies the way `apt` does; if a release ever changes what Tessera
+links against, that update will fail and tell you, and installing the new package with `apt`
+will fix it.
 
 ## Install
 

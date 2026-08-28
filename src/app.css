@@ -656,3 +656,36 @@ button {
   background: none;
   color: var(--accent-hover);
 }
+
+/* A new version is out. Sits above whatever the user came here to do, but is
+   always dismissable — an authenticator that nags is an authenticator people
+   close. */
+.update {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  flex-wrap: wrap;
+  padding: var(--gap-3);
+  margin-bottom: var(--gap-3);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.update--failed {
+  border-color: var(--danger);
+}
+
+.update__text {
+  flex: 1 1 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.setting__check {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  cursor: pointer;
+}

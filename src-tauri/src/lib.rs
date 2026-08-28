@@ -3,6 +3,7 @@ pub mod import;
 pub mod model;
 pub mod otp;
 pub mod sync;
+pub mod update;
 pub mod vault;
 
 use std::sync::Mutex;
@@ -14,10 +15,20 @@ use vault::{Location, VaultManager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_clipboard_manager::init());
+
+    // Desktop only: a phone has no package to replace.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    builder
         .setup(|app| {
             app.manage(AppState {
                 vault: Mutex::new(VaultManager::new(Location::load().vault_path())),
@@ -51,6 +62,8 @@ pub fn run() {
             commands::vault_location,
             commands::set_vault_location,
             commands::refresh_vault,
+            commands::update_policy,
+            commands::set_update_check,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tessera");

@@ -217,3 +217,34 @@ export const setVaultLocation = async (folder: string): Promise<VaultLocation> =
 
 /** Take in anything another machine wrote. True when something changed. */
 export const refreshVault = () => invoke<boolean>("refresh_vault");
+
+/** What installing a new version will cost the person watching. */
+export type UpdateDelivery = "self_install" | "needs_admin";
+
+export interface UpdatePolicy {
+  delivery: UpdateDelivery;
+  /** Whether Tessera is allowed to ask GitHub about newer releases. */
+  enabled: boolean;
+  releasesUrl: string;
+  currentVersion: string;
+}
+
+interface RawUpdatePolicy {
+  delivery: UpdateDelivery;
+  enabled: boolean;
+  releases_url: string;
+  current_version: string;
+}
+
+export const updatePolicy = async (): Promise<UpdatePolicy> => {
+  const raw = await invoke<RawUpdatePolicy>("update_policy");
+  return {
+    delivery: raw.delivery,
+    enabled: raw.enabled,
+    releasesUrl: raw.releases_url,
+    currentVersion: raw.current_version,
+  };
+};
+
+export const setUpdateCheck = (enabled: boolean) =>
+  invoke<boolean>("set_update_check", { enabled });

@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::import::parse_otpauth;
 use crate::model::{Account, AccountKind, Folder};
 use crate::otp::{seconds_remaining, steam_at, totp_at, Algorithm, Secret};
+use crate::update::{delivery, Delivery, RELEASES_URL};
 use crate::vault::{Location, Settings, VaultDocument, VaultError, VaultManager};
 
 /// Everything the interface needs to draw one row, and nothing more.
@@ -773,4 +774,34 @@ mod tests {
         let names: Vec<_> = folder_views(&doc).iter().map(|r| r.name.clone()).collect();
         assert_eq!(names, vec!["Alpha", "middle", "zulu"]);
     }
+}
+
+/// What Tessera may do about a newer version, and whether it is allowed to look.
+#[derive(Serialize)]
+pub struct UpdatePolicy {
+    pub delivery: Delivery,
+    pub enabled: bool,
+    pub releases_url: String,
+    pub current_version: String,
+}
+
+/// Read before the vault is unlocked, because that is when it is needed: the
+/// person who has not opened Tessera in a month is exactly the one who has not
+/// heard about the release that fixes something.
+#[tauri::command]
+pub fn update_policy() -> UpdatePolicy {
+    UpdatePolicy {
+        delivery: delivery(),
+        enabled: Location::load().checks_for_updates(),
+        releases_url: RELEASES_URL.to_owned(),
+        current_version: env!("CARGO_PKG_VERSION").to_owned(),
+    }
+}
+
+#[tauri::command]
+pub fn set_update_check(enabled: bool) -> Result<bool, String> {
+    let mut location = Location::load();
+    location.set_checks_for_updates(enabled);
+    location.save().map_err(fail)?;
+    Ok(enabled)
 }

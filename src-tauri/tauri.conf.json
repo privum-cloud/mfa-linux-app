@@ -52,6 +52,15 @@
           "English"
         ]
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU4M0FBQTVFQzMxNEFBN0UKUldSK3FoVERYcW82NkxsZTE1R2lDQmtPZ0prbGNla05rdHM4Ym5tcm5JNmFqaTl0bzZsblBXaVIK",
+      "endpoints": [
+        "https://github.com/privum-cloud/tessera-mfa-app/releases/latest/download/latest.json"
+      ]
     }
   }
 }

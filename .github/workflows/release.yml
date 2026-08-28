@@ -54,14 +54,22 @@ jobs:
 
       - run: npm ci
       - run: npm run tauri build -- --bundles deb,rpm,appimage
+        env:
+          # Without these the bundler still builds, but produces no .sig files
+          # and the manifest step below refuses to publish an empty manifest.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Attach the Linux packages
+      - name: Attach the Linux packages and their signatures
         run: |
           gh release upload "${{ github.ref_name }}" \
             --repo "${{ github.repository }}" --clobber \
             src-tauri/target/release/bundle/deb/*.deb \
+            src-tauri/target/release/bundle/deb/*.deb.sig \
             src-tauri/target/release/bundle/rpm/*.rpm \
-            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/rpm/*.rpm.sig \
+            src-tauri/target/release/bundle/appimage/*.AppImage \
+            src-tauri/target/release/bundle/appimage/*.AppImage.sig
 
   windows:
     needs: draft
@@ -81,19 +89,38 @@ jobs:
       # NSIS rather than MSI: it needs no WiX toolset and produces one
       # self-contained installer.
       - run: npm run tauri build -- --bundles nsis
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Attach the Windows installer
+      - name: Attach the Windows installer and its signature
         shell: bash
         run: |
           gh release upload "${{ github.ref_name }}" \
             --repo "${{ github.repository }}" --clobber \
-            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*-setup.exe \
+            src-tauri/target/release/bundle/nsis/*-setup.exe.sig
 
   publish:
     needs: [linux, windows]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+
+      # Installed copies find this file at releases/latest/download/latest.json,
+      # so it has to be attached before the draft is lifted: the moment this
+      # release becomes "latest" is the moment that URL starts resolving here.
+      - name: Build and attach the update manifest
+        run: |
+          gh release download "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" --pattern '*.sig' --dir sigs
+          python3 scripts/build-update-manifest.py \
+            --tag "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --sigs sigs --out latest.json
+          gh release upload "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" --clobber latest.json
+
       # Only once both platforms uploaded. A release missing half its packages
       # is worse than one that arrives a few minutes later.
       - name: Publish
