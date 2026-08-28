@@ -13,6 +13,10 @@ interface Props {
 }
 
 type Mode = "import" | "export";
+// Which action is in flight, so the button that was pressed is the one that
+// says so. A plain boolean made every button claim the work of whichever one
+// was clicked.
+type Busy = null | "image" | "link" | "export";
 
 export default function ImportExport({
   error,
@@ -24,7 +28,7 @@ export default function ImportExport({
   const [uri, setUri] = useState("");
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<Busy>(null);
 
   const report = (result: ImportSummary) => {
     setSummary(result);
@@ -38,36 +42,36 @@ export default function ImportExport({
     });
     if (typeof picked !== "string") return;
 
-    setBusy(true);
+    setBusy("image");
     try {
       report(await api.importFromImage(picked));
     } catch (e: unknown) {
       onError(String(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   const pasteLink = async () => {
-    setBusy(true);
+    setBusy("link");
     try {
       report(await api.importFromMigrationUri(uri.trim()));
       setUri("");
     } catch (e: unknown) {
       onError(String(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   const showExport = async () => {
-    setBusy(true);
+    setBusy("export");
     try {
       setCodes(await api.exportMigrationQrs());
     } catch (e: unknown) {
       onError(String(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -94,12 +98,14 @@ export default function ImportExport({
       {mode === "import" ? (
         <div className="pane__form">
           <button
-            className={`button button--primary${busy ? " button--busy" : ""}`}
+            className={`button button--primary${
+              busy === "image" ? " button--busy" : ""
+            }`}
             type="button"
             onClick={() => void pickFile()}
-            disabled={busy}
+            disabled={busy !== null}
           >
-            {busy ? (
+            {busy === "image" ? (
               <span className="button__busy">
                 <Spinner />
                 Reading the image…
@@ -118,12 +124,14 @@ export default function ImportExport({
             onChange={(e) => setUri(e.target.value)}
           />
           <button
-            className={`button button--quiet${busy ? " button--busy" : ""}`}
+            className={`button button--quiet${
+              busy === "link" ? " button--busy" : ""
+            }`}
             type="button"
             onClick={() => void pasteLink()}
-            disabled={busy || uri.trim().length === 0}
+            disabled={busy !== null || uri.trim().length === 0}
           >
-            {busy ? (
+            {busy === "link" ? (
               <span className="button__busy">
                 <Spinner />
                 Importing…
