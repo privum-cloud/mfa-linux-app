@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 
+import Spinner from "../components/Spinner";
 import * as api from "../lib/api";
 import type { ImportSummary } from "../lib/api";
 
@@ -13,6 +14,10 @@ interface Props {
 }
 
 type Mode = "import" | "export";
+// Which action is in flight, so the button that was pressed is the one that
+// says so. A plain boolean made every button claim the work of whichever one
+// was clicked.
+type Busy = null | "image" | "link" | "export";
 
 export default function ImportExport({
   error,
@@ -25,7 +30,7 @@ export default function ImportExport({
   const [uri, setUri] = useState("");
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<Busy>(null);
 
   // What the last attempt did is one fact, but it is kept in two places: the
   // summary here and the error above. Whichever is being set has to clear the
@@ -49,36 +54,36 @@ export default function ImportExport({
     });
     if (typeof picked !== "string") return;
 
-    setBusy(true);
+    setBusy("image");
     try {
       report(await api.importFromImage(picked));
     } catch (e: unknown) {
       fail(e);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   const pasteLink = async () => {
-    setBusy(true);
+    setBusy("link");
     try {
       report(await api.importFromMigrationUri(uri.trim()));
       setUri("");
     } catch (e: unknown) {
       fail(e);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   const showExport = async () => {
-    setBusy(true);
+    setBusy("export");
     try {
       setCodes(await api.exportMigrationQrs());
     } catch (e: unknown) {
       fail(e);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -106,12 +111,21 @@ export default function ImportExport({
       {mode === "import" ? (
         <div className="pane__form">
           <button
-            className="button button--primary"
+            className={`button button--primary${
+              busy === "image" ? " button--busy" : ""
+            }`}
             type="button"
             onClick={() => void pickFile()}
-            disabled={busy}
+            disabled={busy !== null}
           >
-            Choose an image
+            {busy === "image" ? (
+              <span className="button__busy">
+                <Spinner />
+                Reading the image…
+              </span>
+            ) : (
+              "Choose an image"
+            )}
           </button>
 
           <p className="pane__hint">Or paste the link behind the QR code:</p>
@@ -123,12 +137,21 @@ export default function ImportExport({
             onChange={(e) => setUri(e.target.value)}
           />
           <button
-            className="button button--quiet"
+            className={`button button--quiet${
+              busy === "link" ? " button--busy" : ""
+            }`}
             type="button"
             onClick={() => void pasteLink()}
-            disabled={busy || uri.trim().length === 0}
+            disabled={busy !== null || uri.trim().length === 0}
           >
-            Import the link
+            {busy === "link" ? (
+              <span className="button__busy">
+                <Spinner />
+                Importing…
+              </span>
+            ) : (
+              "Import the link"
+            )}
           </button>
 
           {summary && (
