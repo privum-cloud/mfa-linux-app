@@ -23,5 +23,12 @@ dist/
 *.bin
 vault.bin
 
+# Local agent and tooling notes. These are working files for whoever is at the
+# keyboard, not documentation for the project, and they do not belong in a
+# public repository.
+CLAUDE.md
+AGENTS.md
+.claude/
+
 # Internal planning: specs and implementation plans stay local
 docs/superpowers/
