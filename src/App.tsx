@@ -88,6 +88,7 @@ export default function App() {
           error={error}
           onImported={actions.refresh}
           onError={actions.setError}
+          onClearError={actions.clearError}
           onDone={back}
         />
       </main>

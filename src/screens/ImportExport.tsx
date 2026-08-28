@@ -8,6 +8,7 @@ interface Props {
   error: string | null;
   onImported: () => void;
   onError: (message: string) => void;
+  onClearError: () => void;
   onDone: () => void;
 }
 
@@ -17,6 +18,7 @@ export default function ImportExport({
   error,
   onImported,
   onError,
+  onClearError,
   onDone,
 }: Props) {
   const [mode, setMode] = useState<Mode>("import");
@@ -25,9 +27,19 @@ export default function ImportExport({
   const [codes, setCodes] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // What the last attempt did is one fact, but it is kept in two places: the
+  // summary here and the error above. Whichever is being set has to clear the
+  // other, or a success and a failure sit on screen together and one of them is
+  // describing something that did not just happen.
   const report = (result: ImportSummary) => {
     setSummary(result);
+    onClearError();
     onImported();
+  };
+
+  const fail = (e: unknown) => {
+    setSummary(null);
+    onError(String(e));
   };
 
   const pickFile = async () => {
@@ -41,7 +53,7 @@ export default function ImportExport({
     try {
       report(await api.importFromImage(picked));
     } catch (e: unknown) {
-      onError(String(e));
+      fail(e);
     } finally {
       setBusy(false);
     }
@@ -53,7 +65,7 @@ export default function ImportExport({
       report(await api.importFromMigrationUri(uri.trim()));
       setUri("");
     } catch (e: unknown) {
-      onError(String(e));
+      fail(e);
     } finally {
       setBusy(false);
     }
@@ -64,7 +76,7 @@ export default function ImportExport({
     try {
       setCodes(await api.exportMigrationQrs());
     } catch (e: unknown) {
-      onError(String(e));
+      fail(e);
     } finally {
       setBusy(false);
     }
@@ -73,6 +85,7 @@ export default function ImportExport({
   const switchTo = (next: Mode) => {
     setMode(next);
     setSummary(null);
+    onClearError();
     setCodes(null);
     if (next === "export") void showExport();
   };
