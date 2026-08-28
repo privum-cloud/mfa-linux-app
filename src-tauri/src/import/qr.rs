@@ -4,6 +4,7 @@
 //! an image file or a screenshot. Going the other way, an export has to become
 //! a picture a phone can point at.
 
+use image::imageops::FilterType;
 use image::{DynamicImage, GrayImage, ImageFormat, Luma};
 use qrcode::{Color, QrCode};
 
@@ -15,6 +16,35 @@ const MODULE_PIXELS: u32 = 8;
 /// The specification requires four blank modules around the code. Without them
 /// scanners fail on a code that is otherwise perfectly formed.
 const QUIET_MODULES: u32 = 4;
+/// Enlargements to try, in order, when the picture reads as nothing either way
+/// up.
+///
+/// A screenshot rarely reaches a desktop at the size it was taken: a messaging
+/// application re-encodes it at a fraction of the width, and a full batch of
+/// ten accounts is a dense code, so each module arrives spread over about four
+/// pixels of a lossy JPEG. Other readers manage that; `rqrr` samples the grid
+/// and needs room to land inside the module it is aiming at.
+///
+/// Which enlargement gives it that room is neither predictable nor monotonic —
+/// more is not reliably better. Whether a factor lands inside the modules or
+/// across them depends on the fraction of a pixel the original was shrunk by,
+/// so a picture can read at three times and fail at four. Two real screenshots
+/// of one export needed different rungs, measured rather than reasoned, so the
+/// ladder is walked until one reads instead of betting on a single factor.
+///
+/// Ordered by cost, so the cheapest enlargement that works is the one paid for.
+const RETRY_LADDER: [(u32, FilterType); 5] = [
+    (2, FilterType::Triangle),
+    (3, FilterType::CatmullRom),
+    (4, FilterType::Lanczos3),
+    (5, FilterType::CatmullRom),
+    (6, FilterType::Lanczos3),
+];
+/// A ceiling on those attempts. Enlarging a large photograph sixfold allocates
+/// more than the attempt is worth, and a picture that big has pixels per module
+/// to spare, so either it has already been read or the code is not there at
+/// all. Rungs above the ceiling are skipped, not the whole ladder.
+const MAX_RETRY_PIXELS: u64 = 64_000_000;
 
 /// Flatten a picture to grey on a white ground.
 ///
@@ -71,16 +101,54 @@ pub fn read_qr_codes(image_bytes: &[u8]) -> Result<Vec<String>, ImportError> {
     // Nothing the first way up. A screenshot taken in dark mode carries a light
     // code on a dark ground, and the detector does not try the reverse on its
     // own. This costs a second pass only when the first one found nothing.
-    let mut flipped = grey;
+    let mut flipped = grey.clone();
     for pixel in flipped.pixels_mut() {
         pixel.0[0] = 255 - pixel.0[0];
     }
 
     let found = decode_all(flipped);
-    if found.is_empty() {
-        return Err(ImportError::NoQrCode);
+    if !found.is_empty() {
+        return Ok(found);
     }
-    Ok(found)
+
+    // Nothing either way up, at the size the picture came in. What is left is
+    // a code that is present but drawn too small for the detector, which is
+    // what a screenshot that travelled through a phone looks like.
+    //
+    // Only the upright image is enlarged. A code that is both inverted and
+    // shrunk would need this ladder walked twice, and no such picture has been
+    // seen — adding the second walk would double the cost of every failure for
+    // a case nobody has hit.
+    for (factor, filter) in RETRY_LADDER {
+        let Some(larger) = enlarged(&grey, factor, filter) else {
+            continue;
+        };
+        let found = decode_all(larger);
+        if !found.is_empty() {
+            return Ok(found);
+        }
+    }
+
+    Err(ImportError::NoQrCode)
+}
+
+/// The same picture, enlarged, or nothing if this rung is past the ceiling.
+fn enlarged(image: &GrayImage, factor: u32, filter: FilterType) -> Option<GrayImage> {
+    let pixels = u64::from(image.width()) * u64::from(image.height());
+    if pixels.saturating_mul(u64::from(factor * factor)) > MAX_RETRY_PIXELS {
+        return None;
+    }
+
+    Some(image::imageops::resize(
+        image,
+        image.width() * factor,
+        image.height() * factor,
+        // The smooth filters are the point, and nearest-neighbour is absent
+        // deliberately: blowing pixels up whole keeps every module edge exactly
+        // where the shrinking put it, which is the wrong place. Interpolating
+        // is what recovers an edge that fell between two pixels.
+        filter,
+    ))
 }
 
 /// Render text as a PNG QR code.
@@ -249,6 +317,43 @@ mod tests {
             .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
             .unwrap();
         out
+    }
+
+    #[test]
+    fn reads_a_dense_code_from_a_screenshot_that_went_through_a_phone() {
+        // A full batch of ten accounts is a dense code, and Tessera draws it at
+        // eight pixels a module. What comes back from someone's phone has
+        // rarely stayed that size: a messaging application halves the width and
+        // re-encodes it as a lossy JPEG, leaving about four pixels a module
+        // with the edges smeared across them. The code is all still there —
+        // other readers decode exactly this file — and Tessera used to answer
+        // that the image had no QR code in it.
+        let payload = full_batch_payload();
+        let png = render_qr_png(&payload).unwrap();
+
+        let drawn = image::load_from_memory(&png).unwrap();
+        let shrunk = drawn.resize(drawn.width() / 2, drawn.height() / 2, FilterType::Triangle);
+
+        let mut sent = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(
+            &mut std::io::Cursor::new(&mut sent),
+            70,
+        )
+        .encode_image(&shrunk)
+        .expect("re-encode as a phone would");
+
+        assert_eq!(read_qr_codes(&sent).unwrap(), vec![payload]);
+    }
+
+    /// A payload the size Google produces for a full batch of ten accounts.
+    /// The alphabet is what keeps it big: base64 carries lower case, so the
+    /// encoder cannot fall back to the compact alphanumeric mode.
+    fn full_batch_payload() -> String {
+        const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let data: String = (0..1000)
+            .map(|i| ALPHABET[(i * 37 + 11) % ALPHABET.len()] as char)
+            .collect();
+        format!("otpauth-migration://offline?data={data}")
     }
 
     fn blank_png(width: u32, height: u32) -> Vec<u8> {
