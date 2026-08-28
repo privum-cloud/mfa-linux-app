@@ -7,6 +7,9 @@ import type { Settings } from "../lib/api";
 
 interface Props {
   settings: Settings;
+  updateChecking: boolean;
+  currentVersion: string;
+  onSetUpdateChecking: (enabled: boolean) => Promise<void>;
   onSetVaultLocation: (folder: string) => Promise<boolean>;
   error: string | null;
   onSave: (settings: Settings) => Promise<boolean>;
@@ -35,6 +38,9 @@ const CLIPBOARD_CHOICES = [
 
 export default function SettingsScreen({
   settings,
+  updateChecking,
+  currentVersion,
+  onSetUpdateChecking,
   onSetVaultLocation,
   error,
   onSave,
@@ -140,6 +146,25 @@ export default function SettingsScreen({
           Syncthing — and your machines will share it. Every machine needs the
           same master password, because the file is sealed with it. Choosing a
           folder that already holds a vault opens that one instead.
+        </span>
+      </div>
+
+      <div className="setting">
+        <label className="setting__check">
+          <input
+            type="checkbox"
+            checked={updateChecking}
+            onChange={(e) => void onSetUpdateChecking(e.target.checked)}
+          />
+          <span className="setting__label">Check for updates</span>
+        </label>
+        <span className="setting__hint">
+          Tessera asks GitHub whether a newer release exists, and tells you if
+          there is one. It sends nothing about you or your accounts — only a
+          request for the release list, the same one your browser would make.
+          This is the only network request Tessera ever makes, and turning this
+          off means it makes none at all.
+          {currentVersion && ` You are on ${currentVersion}.`}
         </span>
       </div>
 

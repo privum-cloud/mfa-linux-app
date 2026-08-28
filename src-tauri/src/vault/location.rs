@@ -10,8 +10,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::vault::{default_vault_path, VaultError};
 
+/// On unless the user turned it off. Someone who never opens settings should
+/// still hear about a release that fixes something.
+fn enabled() -> bool {
+    true
+}
+
 /// Preferences that must be readable before the vault is open.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Location {
     /// Empty or absent means the default place.
     #[serde(default)]
@@ -22,6 +28,24 @@ pub struct Location {
     /// with the file, so every machine sharing a vault reports the same one.
     #[serde(default)]
     device_id: String,
+    /// Whether to ask GitHub about newer releases.
+    ///
+    /// This cannot live with the other settings inside the sealed document: the
+    /// check runs while the vault is still locked, which is exactly when
+    /// someone who has not opened Tessera in a month most needs to hear that a
+    /// new version exists.
+    #[serde(default = "enabled")]
+    check_for_updates: bool,
+}
+
+impl Default for Location {
+    fn default() -> Self {
+        Self {
+            vault_path: String::new(),
+            device_id: String::new(),
+            check_for_updates: enabled(),
+        }
+    }
 }
 
 /// A short random identity for this machine.
@@ -50,6 +74,15 @@ impl Location {
             let _ = location.save();
         }
         location
+    }
+
+    /// Whether to ask GitHub about newer releases.
+    pub fn checks_for_updates(&self) -> bool {
+        self.check_for_updates
+    }
+
+    pub fn set_checks_for_updates(&mut self, on: bool) {
+        self.check_for_updates = on;
     }
 
     /// This machine's identity, used to keep two writers off one temporary file.
@@ -131,6 +164,33 @@ mod tests {
                 "failed on {raw}"
             );
         }
+    }
+
+    #[test]
+    fn update_checking_is_on_until_someone_turns_it_off() {
+        assert!(Location::from_json("").checks_for_updates());
+    }
+
+    #[test]
+    fn a_config_written_before_this_setting_existed_still_gets_the_check() {
+        // Every vault in the field was written by a version with no such key.
+        // Defaulting to off would mean nobody already installed ever hears
+        // about the release that fixes something for them.
+        let older = r#"{"vault_path":"","device_id":"a1b2c3d4"}"#;
+        assert!(Location::from_json(older).checks_for_updates());
+    }
+
+    #[test]
+    fn turning_the_check_off_is_remembered() {
+        assert!(!Location::from_json(r#"{"check_for_updates":false}"#).checks_for_updates());
+    }
+
+    #[test]
+    fn the_preference_survives_being_written_and_read_back() {
+        let mut location = Location::default();
+        location.set_checks_for_updates(false);
+        let written = serde_json::to_string(&location).unwrap();
+        assert!(!Location::from_json(&written).checks_for_updates());
     }
 
     #[test]

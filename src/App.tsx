@@ -1,11 +1,13 @@
 import { useState } from "react";
 
 import { useVault } from "./lib/useVault";
+import { useUpdate } from "./lib/useUpdate";
 import type { AccountView } from "./lib/api";
 import AccountList from "./screens/AccountList";
 import AddAccount from "./screens/AddAccount";
 import EditAccount from "./screens/EditAccount";
 import FolderIcon from "./components/FolderIcon";
+import UpdateBanner from "./components/UpdateBanner";
 import FolderEditor from "./screens/FolderEditor";
 import SettingsScreen from "./screens/SettingsScreen";
 import ImportExport from "./screens/ImportExport";
@@ -21,7 +23,21 @@ type Screen =
 
 export default function App() {
   const { status, accounts, folders, settings, error, actions } = useVault();
+  const update = useUpdate();
   const [screen, setScreen] = useState<Screen>({ name: "list" });
+
+  // Deliberately rendered while the vault is still locked as well. Someone who
+  // has not opened Tessera in a month is exactly the person who has not heard
+  // about the release that fixes something for them.
+  const banner = update.policy && (
+    <UpdateBanner
+      phase={update.phase}
+      delivery={update.policy.delivery}
+      releasesUrl={update.policy.releasesUrl}
+      onInstall={() => void update.install()}
+      onDismiss={update.dismiss}
+    />
+  );
 
   // The very first render, before the core has answered.
   if (!status) return <main className="shell" />;
@@ -29,6 +45,7 @@ export default function App() {
   if (!status.unlocked) {
     return (
       <main className="shell">
+        {banner}
         <Unlock
           existing={status.exists}
           error={error}
@@ -116,6 +133,9 @@ export default function App() {
       <main className="shell">
         <SettingsScreen
           settings={settings}
+          updateChecking={update.policy?.enabled ?? true}
+          currentVersion={update.policy?.currentVersion ?? ""}
+          onSetUpdateChecking={update.setEnabled}
           onSetVaultLocation={actions.setVaultLocation}
           error={error}
           onSave={actions.saveSettings}
@@ -163,6 +183,7 @@ export default function App() {
       </header>
 
       <div className="shell__body">
+        {banner}
         {error && <p className="error error--inline">{error}</p>}
         <AccountList
           accounts={accounts}
