@@ -252,6 +252,60 @@ button {
   width: 26px;
 }
 
+/* The grip that starts a drag onto a folder.
+   It mirrors .row__edit: absolutely placed, so it costs the row no layout, and
+   revealed on hover. It is a sibling of the row button and never a child of it,
+   which is what keeps copying a code free of any gesture it has to share. */
+.grip-slot {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  padding: 4px 2px;
+  color: var(--text-faint);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity var(--speed), color var(--speed);
+}
+
+.grip-slot:active {
+  cursor: grabbing;
+}
+
+.rows li:hover .grip-slot {
+  opacity: 1;
+}
+
+.grip-slot:hover {
+  color: var(--text);
+}
+
+/* Reserved whether or not a grip is showing, and reserved while searching too,
+   where there is no grip at all — the same policy .row__trailing states for the
+   ring. A row that slides sideways under the cursor is a row that is hard to
+   click, and the cursor is on its way to copy a code. */
+.rows--gripped .row {
+  padding-left: 30px;
+}
+
+/* The row being carried. Faded rather than removed: it still shows where the
+   account came from, which is what makes dropping it back read as a no-op
+   rather than as a move that failed. */
+.row-item--lifted .row {
+  opacity: 0.4;
+}
+
+/* A section under the cursor mid-drag. The outline is drawn inside its own
+   edge so a nested folder lighting up is not mistaken for its parent. */
+.section--drop {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+  background: rgba(61, 125, 255, 0.07);
+}
+
 .row__edit {
   position: absolute;
   top: 50%;
