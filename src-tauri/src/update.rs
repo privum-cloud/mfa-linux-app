@@ -53,6 +53,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_updater_endpoint_is_https() {
+        // The plugin refuses a plain-http endpoint, and it refuses it during
+        // initialisation — which takes the whole application down with it. The
+        // window never opens, so the vault never opens, so a mistake in one
+        // line of configuration costs somebody every second factor they own.
+        //
+        // Nothing else catches this. The test suite never builds a window and
+        // CI never launches one, and the configuration is compiled into the
+        // binary, so checking the file here is checking exactly what ships.
+        let raw = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tauri.conf.json"))
+            .expect("tauri.conf.json sits beside Cargo.toml");
+        let config: serde_json::Value = serde_json::from_str(&raw).expect("valid JSON");
+
+        let endpoints = config["plugins"]["updater"]["endpoints"]
+            .as_array()
+            .expect("the updater needs somewhere to ask");
+        assert!(
+            !endpoints.is_empty(),
+            "an updater with no endpoint asks nobody"
+        );
+
+        for endpoint in endpoints {
+            let url = endpoint.as_str().expect("endpoints are strings");
+            assert!(
+                url.starts_with("https://"),
+                "the updater refuses this at startup and the app will not open: {url}"
+            );
+        }
+    }
+
+    #[test]
     fn the_windows_installer_runs_again_over_the_top_unattended() {
         assert_eq!(delivery_from(true, None), Delivery::SelfInstall);
     }
