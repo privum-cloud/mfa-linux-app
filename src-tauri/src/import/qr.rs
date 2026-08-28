@@ -4,7 +4,7 @@
 //! an image file or a screenshot. Going the other way, an export has to become
 //! a picture a phone can point at.
 
-use image::{ImageFormat, Luma};
+use image::{DynamicImage, GrayImage, ImageFormat, Luma};
 use qrcode::{Color, QrCode};
 
 use super::ImportError;
@@ -16,15 +16,32 @@ const MODULE_PIXELS: u32 = 8;
 /// scanners fail on a code that is otherwise perfectly formed.
 const QUIET_MODULES: u32 = 4;
 
-/// Find every QR code in an image and return what each one says.
+/// Flatten a picture to grey on a white ground.
 ///
-/// An export of many accounts is several QR codes, and one screenshot may hold
-/// all of them, so this returns a list rather than the first match.
-pub fn read_qr_codes(image_bytes: &[u8]) -> Result<Vec<String>, ImportError> {
-    let image = image::load_from_memory(image_bytes)
-        .map_err(|_| ImportError::NotAnImage)?
-        .to_luma8();
+/// `to_luma8` discards the alpha channel, and a fully transparent pixel is
+/// almost always stored as transparent *black*. A code cropped onto a
+/// transparent background therefore arrives as black on black — nothing at all.
+/// Compositing over white first is what any viewer does before showing the
+/// file, so it is also what the person who sent it saw.
+fn grey_on_white(source: &DynamicImage) -> GrayImage {
+    let rgba = source.to_rgba8();
+    let mut grey = GrayImage::new(rgba.width(), rgba.height());
 
+    for (x, y, pixel) in rgba.enumerate_pixels() {
+        let [red, green, blue, alpha] = pixel.0;
+        let over_white = |channel: u8| {
+            ((channel as u32 * alpha as u32 + 255 * (255 - alpha as u32)) / 255) as f32
+        };
+        // The same Rec. 601 weighting `to_luma8` applies.
+        let luma = 0.299 * over_white(red) + 0.587 * over_white(green) + 0.114 * over_white(blue);
+        grey.put_pixel(x, y, Luma([luma.round() as u8]));
+    }
+
+    grey
+}
+
+/// Every code the detector can find and decode in one grey image.
+fn decode_all(image: GrayImage) -> Vec<String> {
     let mut prepared = rqrr::PreparedImage::prepare(image);
 
     let mut found = Vec::new();
@@ -35,7 +52,31 @@ pub fn read_qr_codes(image_bytes: &[u8]) -> Result<Vec<String>, ImportError> {
             found.push(content);
         }
     }
+    found
+}
 
+/// Find every QR code in an image and return what each one says.
+///
+/// An export of many accounts is several QR codes, and one screenshot may hold
+/// all of them, so this returns a list rather than the first match.
+pub fn read_qr_codes(image_bytes: &[u8]) -> Result<Vec<String>, ImportError> {
+    let source = image::load_from_memory(image_bytes).map_err(|_| ImportError::NotAnImage)?;
+    let grey = grey_on_white(&source);
+
+    let found = decode_all(grey.clone());
+    if !found.is_empty() {
+        return Ok(found);
+    }
+
+    // Nothing the first way up. A screenshot taken in dark mode carries a light
+    // code on a dark ground, and the detector does not try the reverse on its
+    // own. This costs a second pass only when the first one found nothing.
+    let mut flipped = grey;
+    for pixel in flipped.pixels_mut() {
+        pixel.0[0] = 255 - pixel.0[0];
+    }
+
+    let found = decode_all(flipped);
     if found.is_empty() {
         return Err(ImportError::NoQrCode);
     }
@@ -136,6 +177,62 @@ mod tests {
         let img = image::load_from_memory(&png).unwrap().to_luma8();
         let inset = QUIET_MODULES * MODULE_PIXELS - 1;
         assert_eq!(img.get_pixel(inset, inset).0[0], 255, "no quiet zone");
+    }
+
+    #[test]
+    fn a_code_drawn_on_a_transparent_background_is_still_found() {
+        // Cropping a QR code in an image editor commonly leaves the light
+        // squares transparent rather than white. Dropping the alpha channel
+        // turns those pixels black, and a black code on a black field is
+        // nothing at all.
+        let png = render_qr_png("otpauth://totp/Example:alice?secret=GEZDGNBVGY3TQOJQ").unwrap();
+        assert!(
+            read_qr_codes(&on_transparent(&png)).is_ok(),
+            "lost to the alpha channel"
+        );
+    }
+
+    #[test]
+    fn a_light_code_on_a_dark_background_is_still_found() {
+        // What a screenshot taken in dark mode looks like. The code is intact;
+        // only the polarity is reversed.
+        let png = render_qr_png("otpauth://totp/Example:alice?secret=GEZDGNBVGY3TQOJQ").unwrap();
+        assert!(
+            read_qr_codes(&inverted(&png)).is_ok(),
+            "not tried the other way up"
+        );
+    }
+
+    /// Redraw a rendered code with its light squares fully transparent.
+    fn on_transparent(png: &[u8]) -> Vec<u8> {
+        let grey = image::load_from_memory(png).unwrap().to_luma8();
+        let mut out = image::RgbaImage::new(grey.width(), grey.height());
+        for (x, y, pixel) in grey.enumerate_pixels() {
+            let rgba = if pixel.0[0] < 128 {
+                image::Rgba([0, 0, 0, 255])
+            } else {
+                image::Rgba([0, 0, 0, 0])
+            };
+            out.put_pixel(x, y, rgba);
+        }
+        encode(image::DynamicImage::ImageRgba8(out))
+    }
+
+    /// Redraw a rendered code with its tones swapped.
+    fn inverted(png: &[u8]) -> Vec<u8> {
+        let mut grey = image::load_from_memory(png).unwrap().to_luma8();
+        for pixel in grey.pixels_mut() {
+            pixel.0[0] = 255 - pixel.0[0];
+        }
+        encode(image::DynamicImage::ImageLuma8(grey))
+    }
+
+    fn encode(image: image::DynamicImage) -> Vec<u8> {
+        let mut out = Vec::new();
+        image
+            .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
+            .unwrap();
+        out
     }
 
     fn blank_png(width: u32, height: u32) -> Vec<u8> {
