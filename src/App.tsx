@@ -191,6 +191,7 @@ export default function App() {
           accounts={accounts}
           folders={folders}
           clipboardClearSecs={settings?.clipboardClearSecs ?? 20}
+          onMoveToFolder={actions.moveAccountToFolder}
           onEdit={(account) => setScreen({ name: "edit", account })}
           onActivity={actions.noteActivity}
         />

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 import CountdownRing from "../components/CountdownRing";
+import DragHandle from "../components/DragHandle";
 import FolderIcon from "../components/FolderIcon";
 import { readCollapsed, writeCollapsed } from "../lib/collapsed";
+import { useDragToFolder } from "../lib/useDragToFolder";
 import type { AccountView, FolderView } from "../lib/api";
 
 interface Props {
@@ -11,6 +13,7 @@ interface Props {
   folders: FolderView[];
   clipboardClearSecs: number;
   onEdit: (account: AccountView) => void;
+  onMoveToFolder: (id: string, folderId: string | null) => void;
   onActivity: () => void;
 }
 
@@ -19,6 +22,7 @@ export default function AccountList({
   folders,
   clipboardClearSecs,
   onEdit,
+  onMoveToFolder,
   onActivity,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -49,9 +53,20 @@ export default function AccountList({
     }
   }, [collapsed, folders]);
 
+  // While a drag is in flight the tree is folded down to its folder headings,
+  // so every destination is on screen at once instead of somewhere below the
+  // fold. It overlays the real set rather than replacing it: nothing here is
+  // written to storage, and letting go restores exactly what was open before.
+  const [foldedForDrag, setFoldedForDrag] = useState<Set<string> | null>(null);
+
   /** Before the first run settles, treat everything as collapsed — rendering it
    *  open for one frame would show a flash of the very thing we are avoiding. */
-  const isCollapsed = (id: string) => (collapsed === null ? true : collapsed.has(id));
+  const isCollapsed = (id: string) =>
+    foldedForDrag !== null
+      ? foldedForDrag.has(id)
+      : collapsed === null
+        ? true
+        : collapsed.has(id);
 
   const needle = query.trim().toLowerCase();
   const searching = needle.length > 0;
@@ -88,6 +103,31 @@ export default function AccountList({
     return hidden;
   }, [folders, collapsed]);
 
+  /** Open a folder, leaving an already-open one alone. Distinct from `toggle`
+   *  because a folder rested on mid-drag must open, never close. */
+  const expand = (id: string) => {
+    // Mid-drag the spring-open works on the temporary set, so opening a folder
+    // to reach a subfolder does not survive the drag as a real preference.
+    if (foldedForDrag !== null) {
+      setFoldedForDrag((previous) => {
+        if (previous === null || !previous.has(id)) return previous;
+        const next = new Set(previous);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
+    setCollapsed((previous) => {
+      if (previous === null) {
+        return new Set(folders.map((f) => f.id).filter((f) => f !== id));
+      }
+      if (!previous.has(id)) return previous;
+      const next = new Set(previous);
+      next.delete(id);
+      return next;
+    });
+  };
+
   const toggle = (id: string) => {
     onActivity();
     setCollapsed((previous) => {
@@ -99,6 +139,38 @@ export default function AccountList({
       return next;
     });
   };
+
+  const drag = useDragToFolder({
+    onMove: onMoveToFolder,
+    onSpringOpen: expand,
+    isCollapsed,
+    onBegin: (from) => {
+      // Everything folds except the chain the dragged row is sitting in. Fold
+      // its own folder and the row goes off the page; fold an ancestor and it
+      // goes with it, and either way the browser drops the drag it was in the
+      // middle of.
+      const parentOf = new Map(folders.map((f) => [f.id, f.parentId]));
+      const keepOpen = new Set<string>();
+      let at = from;
+      let guard = folders.length;
+      while (at !== null && guard-- > 0) {
+        keepOpen.add(at);
+        at = parentOf.get(at) ?? null;
+      }
+      setFoldedForDrag(
+        new Set(folders.map((f) => f.id).filter((id) => !keepOpen.has(id))),
+      );
+    },
+    onFinish: () => setFoldedForDrag(null),
+    onActivity,
+  });
+
+  // Dragging needs somewhere to drop. Searching flattens the tree and no
+  // folder is on screen; with no folders at all there is nothing to aim at.
+  const canDrag = !searching && folders.length > 0;
+  // Keyed on having folders rather than on canDrag, so the rows do not shift
+  // sideways the moment someone types in the search box.
+  const gripped = folders.length > 0 ? " rows--gripped" : "";
 
   const copy = async (account: AccountView) => {
     onActivity();
@@ -117,7 +189,22 @@ export default function AccountList({
   };
 
   const row = (account: AccountView, indent: number, withFolder = false) => (
-    <li key={account.id} style={indent ? { paddingLeft: indent } : undefined}>
+    <li
+      key={account.id}
+      className={drag.draggingId === account.id ? "row-item--lifted" : undefined}
+      style={indent ? { paddingLeft: indent } : undefined}
+    >
+      {canDrag && (
+        <span
+          className="grip-slot"
+          aria-hidden="true"
+          style={indent ? { left: 8 + indent } : undefined}
+          {...drag.handleProps(account.id, account.folderId)}
+        >
+          <DragHandle />
+        </span>
+      )}
+
       <button
         className="row"
         type="button"
@@ -199,16 +286,24 @@ export default function AccountList({
       ) : searching ? (
         /* Searching means find this now, not browse: the tree flattens and each
            row says which folder it came from. */
-        <ul className="rows">{matches.map((a) => row(a, 0, true))}</ul>
+        <ul className={`rows${gripped}`}>
+          {matches.map((a) => row(a, 0, true))}
+        </ul>
       ) : (
-        <ul className="rows">
+        <ul className={`rows${gripped}`}>
           {folders
             .filter((f) => !hiddenByAncestor.has(f.id))
             .map((folder) => {
               const inside = matches.filter((a) => a.folderId === folder.id);
               const folderCollapsed = isCollapsed(folder.id);
               return (
-                <li key={folder.id} className="section">
+                <li
+                  key={folder.id}
+                  className={`section${
+                    drag.isOver(folder.id) ? " section--drop" : ""
+                  }`}
+                  {...drag.targetProps(folder.id)}
+                >
                   <button
                     className="section__header"
                     type="button"
@@ -234,8 +329,11 @@ export default function AccountList({
               );
             })}
 
-          {loose.length > 0 && folders.length > 0 && (
-            <li className="section">
+          {(loose.length > 0 || drag.active) && folders.length > 0 && (
+            <li
+              className={`section${drag.isOver(null) ? " section--drop" : ""}`}
+              {...drag.targetProps(null)}
+            >
               <div className="section__header section__header--plain">
                 <span className="section__name">Ungrouped</span>
                 <span className="section__count">{loose.length}</span>
