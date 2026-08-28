@@ -3,7 +3,11 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 import CountdownRing from "../components/CountdownRing";
 import DragHandle from "../components/DragHandle";
-import FolderIcon from "../components/FolderIcon";
+import FolderIcon, {
+  FOLDER_ICONS,
+  FOLDER_ICON_LABELS,
+} from "../components/FolderIcon";
+import FolderMenu from "../components/FolderMenu";
 import { readCollapsed, writeCollapsed } from "../lib/collapsed";
 import { useDragToFolder } from "../lib/useDragToFolder";
 import type { AccountView, FolderView } from "../lib/api";
@@ -14,6 +18,10 @@ interface Props {
   clipboardClearSecs: number;
   onEdit: (account: AccountView) => void;
   onMoveToFolder: (id: string, folderId: string | null) => void;
+  onCreateFolder: (name: string, parentId: string | null) => void;
+  onRenameFolder: (id: string, name: string) => void;
+  onSetFolderIcon: (id: string, icon: string | null) => void;
+  onRemoveFolder: (id: string) => void;
   onActivity: () => void;
 }
 
@@ -23,6 +31,10 @@ export default function AccountList({
   clipboardClearSecs,
   onEdit,
   onMoveToFolder,
+  onCreateFolder,
+  onRenameFolder,
+  onSetFolderIcon,
+  onRemoveFolder,
   onActivity,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -58,6 +70,16 @@ export default function AccountList({
   // fold. It overlays the real set rather than replacing it: nothing here is
   // written to storage, and letting go restores exactly what was open before.
   const [foldedForDrag, setFoldedForDrag] = useState<Set<string> | null>(null);
+  // Right-click opens this; picking from it opens the panel below.
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
+    null,
+  );
+  // The four actions all need somewhere to happen, and they all happen in the
+  // same strip under the folder's own heading rather than in four places.
+  const [pending, setPending] = useState<
+    { id: string; kind: "add" | "rename" | "icon" | "remove" } | null
+  >(null);
+  const [draft, setDraft] = useState("");
 
   /** Before the first run settles, treat everything as collapsed — rendering it
    *  open for one frame would show a flash of the very thing we are avoiding. */
@@ -126,6 +148,34 @@ export default function AccountList({
       next.delete(id);
       return next;
     });
+  };
+
+  const closePanel = () => {
+    setPending(null);
+    setDraft("");
+  };
+
+  const pickFromMenu = (id: string, kind: NonNullable<typeof pending>["kind"]) => {
+    onActivity();
+    setMenu(null);
+    // Opened first: acting on a folder you cannot see is acting somewhere you
+    // are guessing at.
+    expand(id);
+    setPending({ id, kind });
+    setDraft(kind === "rename" ? (folders.find((f) => f.id === id)?.name ?? "") : "");
+  };
+
+  const commitPanel = () => {
+    if (pending === null) return;
+    const name = draft.trim();
+    if (pending.kind === "add") {
+      if (!name) return;
+      onCreateFolder(name, pending.id);
+    } else if (pending.kind === "rename") {
+      if (!name) return;
+      onRenameFolder(pending.id, name);
+    }
+    closePanel();
   };
 
   const toggle = (id: string) => {
@@ -309,6 +359,16 @@ export default function AccountList({
                     type="button"
                     style={{ paddingLeft: 12 + folder.depth * 14 }}
                     onClick={() => toggle(folder.id)}
+                    onContextMenu={(event) => {
+                      // Without this the WebView2 menu opens on top of ours.
+                      event.preventDefault();
+                      onActivity();
+                      setMenu({
+                        id: folder.id,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
                     aria-expanded={!folderCollapsed}
                   >
                     <span className="section__twisty">
@@ -320,6 +380,92 @@ export default function AccountList({
                     <span className="section__name">{folder.name}</span>
                     <span className="section__count">{folder.accountCount}</span>
                   </button>
+                  {pending?.id === folder.id && (
+                    <div
+                      className="section__panel"
+                      style={{ paddingLeft: 26 + folder.depth * 14 }}
+                    >
+                      {(pending.kind === "add" || pending.kind === "rename") && (
+                        <input
+                          className="field field--compact"
+                          autoFocus
+                          placeholder={
+                            pending.kind === "add" ? "Name it" : folder.name
+                          }
+                          aria-label={
+                            pending.kind === "add"
+                              ? `Name of the new subfolder in ${folder.name}`
+                              : `New name for ${folder.name}`
+                          }
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitPanel();
+                            if (e.key === "Escape") closePanel();
+                          }}
+                          onBlur={closePanel}
+                        />
+                      )}
+
+                      {pending.kind === "icon" && (
+                        <div
+                          className="icon-grid"
+                          role="group"
+                          aria-label={`Icon for ${folder.name}`}
+                        >
+                          {FOLDER_ICONS.map((icon) => (
+                            <button
+                              key={icon}
+                              className={`icon-choice${
+                                folder.icon === icon ? " icon-choice--on" : ""
+                              }`}
+                              type="button"
+                              aria-label={FOLDER_ICON_LABELS[icon] ?? icon}
+                              title={FOLDER_ICON_LABELS[icon] ?? icon}
+                              onClick={() => {
+                                onSetFolderIcon(
+                                  folder.id,
+                                  folder.icon === icon ? null : icon,
+                                );
+                                closePanel();
+                              }}
+                            >
+                              <FolderIcon icon={icon} size={17} />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {pending.kind === "remove" && (
+                        <div className="section__confirm">
+                          <p className="pane__hint">
+                            Delete “{folder.name}”? Everything inside moves up
+                            to where the folder was; no account is lost.
+                          </p>
+                          <div className="button-row">
+                            <button
+                              className="button button--danger button-row__spacer"
+                              type="button"
+                              onClick={() => {
+                                onRemoveFolder(folder.id);
+                                closePanel();
+                              }}
+                            >
+                              Delete folder
+                            </button>
+                            <button
+                              className="button button--quiet"
+                              type="button"
+                              onClick={closePanel}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {!folderCollapsed && (
                     <ul className="rows rows--nested">
                       {inside.map((a) => row(a, folder.depth * 14))}
@@ -344,6 +490,16 @@ export default function AccountList({
 
           {folders.length === 0 && loose.map((a) => row(a, 0))}
         </ul>
+      )}
+
+      {menu && (
+        <FolderMenu
+          x={menu.x}
+          y={menu.y}
+          folderName={folders.find((f) => f.id === menu.id)?.name ?? ""}
+          onPick={(kind) => pickFromMenu(menu.id, kind)}
+          onClose={() => setMenu(null)}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}

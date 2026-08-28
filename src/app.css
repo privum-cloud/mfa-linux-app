@@ -577,6 +577,59 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* The folder context menu. Fixed, because it is placed against the window and
+   not against whatever it was opened over. */
+.menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 178px;
+  padding: var(--gap-1);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.menu__item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  text-align: left;
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 13px;
+  transition: background var(--speed), color var(--speed);
+}
+
+.menu__item:hover {
+  background: var(--surface-hover);
+}
+
+/* Set apart by colour rather than by a rule: it is the only entry here that
+   takes something away. */
+.menu__item--danger {
+  color: var(--danger);
+}
+
+.menu__item--danger:hover {
+  background: rgba(224, 86, 60, 0.12);
+}
+
+/* Where all four folder actions happen: under the folder's own heading, so
+   what is being renamed or deleted is the thing directly above the field. */
+.section__panel {
+  padding: 0 var(--gap-3) var(--gap-2);
+}
+
+.field--compact {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.section__confirm .pane__hint {
+  margin: 0 0 var(--gap-2);
+}
+
 .rows--nested {
   padding: 0;
 }
