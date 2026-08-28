@@ -356,6 +356,52 @@ button {
   cursor: not-allowed;
 }
 
+.spinner {
+  display: block;
+  flex: none;
+  transform-origin: 50% 50%;
+  animation: spinner-turn 900ms linear infinite;
+}
+
+.spinner__track {
+  stroke: currentColor;
+  opacity: 0.25;
+}
+
+.spinner__arc {
+  stroke: currentColor;
+  stroke-linecap: round;
+}
+
+@keyframes spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The label beside it already says what is happening, so where motion is
+   unwelcome the ring simply stops rather than disappearing. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+.button__busy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-2);
+}
+
+/* A button that is working is not a button that is unavailable. It is disabled
+   to swallow a second click, but it keeps its colour, or the ring turning
+   inside it would be greyed out to the point of being missed. */
+.button--busy:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
 .button-row {
   display: flex;
   align-items: center;

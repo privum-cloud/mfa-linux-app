@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 
+import Spinner from "../components/Spinner";
 import * as api from "../lib/api";
 import type { ImportSummary } from "../lib/api";
 
@@ -93,12 +94,19 @@ export default function ImportExport({
       {mode === "import" ? (
         <div className="pane__form">
           <button
-            className="button button--primary"
+            className={`button button--primary${busy ? " button--busy" : ""}`}
             type="button"
             onClick={() => void pickFile()}
             disabled={busy}
           >
-            Choose an image
+            {busy ? (
+              <span className="button__busy">
+                <Spinner />
+                Reading the image…
+              </span>
+            ) : (
+              "Choose an image"
+            )}
           </button>
 
           <p className="pane__hint">Or paste the link behind the QR code:</p>
@@ -110,12 +118,19 @@ export default function ImportExport({
             onChange={(e) => setUri(e.target.value)}
           />
           <button
-            className="button button--quiet"
+            className={`button button--quiet${busy ? " button--busy" : ""}`}
             type="button"
             onClick={() => void pasteLink()}
             disabled={busy || uri.trim().length === 0}
           >
-            Import the link
+            {busy ? (
+              <span className="button__busy">
+                <Spinner />
+                Importing…
+              </span>
+            ) : (
+              "Import the link"
+            )}
           </button>
 
           {summary && (
