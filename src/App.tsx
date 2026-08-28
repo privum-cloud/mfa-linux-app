@@ -7,6 +7,8 @@ import AccountList from "./screens/AccountList";
 import AddAccount from "./screens/AddAccount";
 import EditAccount from "./screens/EditAccount";
 import FolderIcon from "./components/FolderIcon";
+import GearIcon from "./components/GearIcon";
+import PlusIcon from "./components/PlusIcon";
 import UpdateBanner from "./components/UpdateBanner";
 import FolderEditor from "./screens/FolderEditor";
 import SettingsScreen from "./screens/SettingsScreen";
@@ -169,7 +171,7 @@ export default function App() {
           aria-label="Settings"
           title="Settings"
         >
-          <FolderIcon icon="gear" size={16} />
+          <GearIcon />
         </button>
         <button
           className="header__action header__action--primary"
@@ -178,7 +180,7 @@ export default function App() {
           aria-label="Add an account"
           title="Add an account"
         >
-          +
+          <PlusIcon />
         </button>
       </header>
 
@@ -189,6 +191,11 @@ export default function App() {
           accounts={accounts}
           folders={folders}
           clipboardClearSecs={settings?.clipboardClearSecs ?? 20}
+          onMoveToFolder={actions.moveAccountToFolder}
+          onCreateFolder={actions.createFolder}
+          onRenameFolder={actions.renameFolder}
+          onSetFolderIcon={actions.setFolderIcon}
+          onRemoveFolder={actions.removeFolder}
           onEdit={(account) => setScreen({ name: "edit", account })}
           onActivity={actions.noteActivity}
         />

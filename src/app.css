@@ -139,11 +139,10 @@ button {
   color: var(--text);
 }
 
-/* Adding an account is why the header exists; the gear is housekeeping. */
+/* Adding an account is why the header exists; the gear is housekeeping. The
+   plus is drawn now, so the type sizing that used to centre a glyph is gone. */
 .header__action--primary {
   color: var(--accent);
-  font-size: 20px;
-  line-height: 1;
 }
 
 .header__action--primary:hover {
@@ -250,6 +249,60 @@ button {
   align-items: center;
   justify-content: center;
   width: 26px;
+}
+
+/* The grip that starts a drag onto a folder.
+   It mirrors .row__edit: absolutely placed, so it costs the row no layout, and
+   revealed on hover. It is a sibling of the row button and never a child of it,
+   which is what keeps copying a code free of any gesture it has to share. */
+.grip-slot {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  padding: 4px 2px;
+  color: var(--text-faint);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity var(--speed), color var(--speed);
+}
+
+.grip-slot:active {
+  cursor: grabbing;
+}
+
+.rows li:hover .grip-slot {
+  opacity: 1;
+}
+
+.grip-slot:hover {
+  color: var(--text);
+}
+
+/* Reserved whether or not a grip is showing, and reserved while searching too,
+   where there is no grip at all — the same policy .row__trailing states for the
+   ring. A row that slides sideways under the cursor is a row that is hard to
+   click, and the cursor is on its way to copy a code. */
+.rows--gripped .row {
+  padding-left: 30px;
+}
+
+/* The row being carried. Faded rather than removed: it still shows where the
+   account came from, which is what makes dropping it back read as a no-op
+   rather than as a move that failed. */
+.row-item--lifted .row {
+  opacity: 0.4;
+}
+
+/* A section under the cursor mid-drag. The outline is drawn inside its own
+   edge so a nested folder lighting up is not mistaken for its parent. */
+.section--drop {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+  background: rgba(61, 125, 255, 0.07);
 }
 
 .row__edit {
@@ -522,6 +575,59 @@ button {
   flex: none;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+/* The folder context menu. Fixed, because it is placed against the window and
+   not against whatever it was opened over. */
+.menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 178px;
+  padding: var(--gap-1);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.menu__item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  text-align: left;
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 13px;
+  transition: background var(--speed), color var(--speed);
+}
+
+.menu__item:hover {
+  background: var(--surface-hover);
+}
+
+/* Set apart by colour rather than by a rule: it is the only entry here that
+   takes something away. */
+.menu__item--danger {
+  color: var(--danger);
+}
+
+.menu__item--danger:hover {
+  background: rgba(224, 86, 60, 0.12);
+}
+
+/* Where all four folder actions happen: under the folder's own heading, so
+   what is being renamed or deleted is the thing directly above the field. */
+.section__panel {
+  padding: 0 var(--gap-3) var(--gap-2);
+}
+
+.field--compact {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.section__confirm .pane__hint {
+  margin: 0 0 var(--gap-2);
 }
 
 .rows--nested {
