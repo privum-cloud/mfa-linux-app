@@ -44,6 +44,21 @@ jobs:
         run: cargo test --all
         working-directory: src-tauri
 
+  # The macOS build links against nothing that needs installing, so this is
+  # only the tests — enough to catch a cfg(unix) path that behaves differently
+  # on Darwin before a release finds it.
+  rust-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Test
+        run: cargo test --all
+        working-directory: src-tauri
+
   web:
     runs-on: ubuntu-24.04
     steps:

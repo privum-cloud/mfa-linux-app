@@ -101,8 +101,46 @@ jobs:
             src-tauri/target/release/bundle/nsis/*-setup.exe \
             src-tauri/target/release/bundle/nsis/*-setup.exe.sig
 
+  macos:
+    needs: draft
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # One universal binary rather than one build per architecture: the
+      # updater artefact is named Tessera.app.tar.gz with no architecture in
+      # it, so two builds would overwrite each other on the release. Both
+      # targets have to be present for the toolchain to link them together.
+      - name: Add both Apple targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Show the toolchain
+        run: rustc --version && cargo --version
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      # No Apple Developer ID here: the bundle is ad-hoc signed, which is all
+      # macOS needs to run it. Gatekeeper warns once on a browser download and
+      # the README says what to click; see docs/macos-support.md.
+      - run: npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Attach the disk image and the updater archive with its signature
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" --clobber \
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg \
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz \
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+
   publish:
-    needs: [linux, windows]
+    needs: [linux, windows, macos]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -121,7 +159,7 @@ jobs:
           gh release upload "${{ github.ref_name }}" \
             --repo "${{ github.repository }}" --clobber latest.json
 
-      # Only once both platforms uploaded. A release missing half its packages
+      # Only once every platform uploaded. A release missing half its packages
       # is worse than one that arrives a few minutes later.
       - name: Publish
         run: |

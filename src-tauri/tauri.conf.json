@@ -28,7 +28,7 @@
     "active": true,
     "targets": "all",
     "category": "Utility",
-    "shortDescription": "Open-source authenticator for Linux",
+    "shortDescription": "Open-source authenticator for Linux, Windows and macOS",
     "longDescription": "Tessera generates TOTP and HOTP codes, imports accounts from Google Authenticator, and synchronises an encrypted vault through your Google account.",
     "icon": [
       "icons/32x32.png",
@@ -44,6 +44,9 @@
           "libgtk-3-0"
         ]
       }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0"
     },
     "windows": {
       "nsis": {
