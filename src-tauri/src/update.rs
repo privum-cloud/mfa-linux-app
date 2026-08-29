@@ -1,8 +1,9 @@
 //! How a new version reaches an installation.
 //!
 //! Every desktop package Tessera ships can be replaced in place, but not on the
-//! same terms. An AppImage is a single file the running process owns, and the
-//! Windows installer runs again over the top; both finish without asking anyone
+//! same terms. An AppImage is a single file the running process owns, the
+//! Windows installer runs again over the top, and a macOS `.app` is a folder
+//! in the user's own `/Applications`; all three finish without asking anyone
 //! for anything. A `.deb` or `.rpm` belongs to the system package manager, so
 //! replacing one runs `dpkg`/`rpm` through `pkexec` and the system puts up its
 //! administrator prompt.
@@ -31,12 +32,15 @@ pub enum Delivery {
 
 /// Decide from what the running process can see.
 ///
+/// `self_replacing` is true on Windows and macOS, where the installed copy
+/// belongs to the user rather than to a package manager.
+///
 /// `appimage` is the `APPIMAGE` environment variable, which the AppImage
 /// runtime sets to the path of the image it is running. Nothing else sets it,
 /// so its presence is what separates an AppImage from a `.deb` or `.rpm`
 /// unpacked into the same place on disk.
-pub fn delivery_from(windows: bool, appimage: Option<&str>) -> Delivery {
-    if windows || appimage.is_some_and(|path| !path.is_empty()) {
+pub fn delivery_from(self_replacing: bool, appimage: Option<&str>) -> Delivery {
+    if self_replacing || appimage.is_some_and(|path| !path.is_empty()) {
         Delivery::SelfInstall
     } else {
         Delivery::NeedsAdmin
@@ -45,7 +49,10 @@ pub fn delivery_from(windows: bool, appimage: Option<&str>) -> Delivery {
 
 /// Decide for the process running right now.
 pub fn delivery() -> Delivery {
-    delivery_from(cfg!(windows), std::env::var("APPIMAGE").ok().as_deref())
+    delivery_from(
+        cfg!(any(windows, target_os = "macos")),
+        std::env::var("APPIMAGE").ok().as_deref(),
+    )
 }
 
 #[cfg(test)]
@@ -85,6 +92,13 @@ mod tests {
 
     #[test]
     fn the_windows_installer_runs_again_over_the_top_unattended() {
+        assert_eq!(delivery_from(true, None), Delivery::SelfInstall);
+    }
+
+    #[test]
+    fn a_macos_app_bundle_is_the_users_own_and_needs_no_password() {
+        // The updater swaps the .app folder in place; nothing on macOS owns
+        // it the way dpkg owns a .deb, so there is no prompt to warn about.
         assert_eq!(delivery_from(true, None), Delivery::SelfInstall);
     }
 

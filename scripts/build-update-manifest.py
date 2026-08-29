@@ -19,12 +19,15 @@ import json
 import pathlib
 import sys
 
-# Which manifest key each signed artefact belongs under.
+# Which manifest keys each signed artefact belongs under. The macOS archive is
+# a universal binary, and the updater asks for the architecture it is running
+# as, so one file answers under both keys.
 TARGETS = [
-    (".AppImage.sig", "linux-x86_64-appimage"),
-    (".deb.sig", "linux-x86_64-deb"),
-    (".rpm.sig", "linux-x86_64-rpm"),
-    ("-setup.exe.sig", "windows-x86_64-nsis"),
+    (".AppImage.sig", ["linux-x86_64-appimage"]),
+    (".deb.sig", ["linux-x86_64-deb"]),
+    (".rpm.sig", ["linux-x86_64-rpm"]),
+    ("-setup.exe.sig", ["windows-x86_64-nsis"]),
+    (".app.tar.gz.sig", ["darwin-aarch64", "darwin-x86_64"]),
 ]
 
 
@@ -40,13 +43,14 @@ def main() -> int:
     platforms = {}
 
     for sig in sorted(args.sigs.iterdir()):
-        for suffix, key in TARGETS:
+        for suffix, keys in TARGETS:
             if sig.name.endswith(suffix):
-                platforms[key] = {
-                    "signature": sig.read_text().strip(),
-                    # The signature file sits beside what it signs.
-                    "url": f"{base}/{sig.name[: -len('.sig')]}",
-                }
+                for key in keys:
+                    platforms[key] = {
+                        "signature": sig.read_text().strip(),
+                        # The signature file sits beside what it signs.
+                        "url": f"{base}/{sig.name[: -len('.sig')]}",
+                    }
                 break
         else:
             print(f"warning: no target for {sig.name}", file=sys.stderr)

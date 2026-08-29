@@ -4,12 +4,12 @@
 
 # Tessera
 
-**Open-source authenticator for Linux and Windows — your two-factor codes on the desktop, in an encrypted vault you hold the key to.**
+**Open-source authenticator for Linux, Windows and macOS — your two-factor codes on the desktop, in an encrypted vault you hold the key to.**
 
 Import the accounts you already have in Google Authenticator, generate TOTP and HOTP codes, and send them back to your phone whenever you need to.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](./LICENSE)
-![Platform: Linux and Windows](https://img.shields.io/badge/Platform-Linux%20·%20Windows-333.svg)
+![Platform: Linux, Windows and macOS](https://img.shields.io/badge/Platform-Linux%20·%20Windows%20·%20macOS-333.svg)
 ![Built with Tauri + Rust + React](https://img.shields.io/badge/Built%20with-Tauri%20·%20Rust%20·%20React-24c8db.svg)
 
 Made with ❤️ by **[Privum Cloud »](https://privum.cloud)**
@@ -18,14 +18,14 @@ Made with ❤️ by **[Privum Cloud »](https://privum.cloud)**
 
 ---
 
-Tessera is a native desktop app for **two-factor authentication codes**, on Linux and Windows.
+Tessera is a native desktop app for **two-factor authentication codes**, on Linux, Windows and macOS.
 It keeps your accounts in a file encrypted with a master password only you know, generates the
 six-digit codes you paste into login forms, and moves accounts to and from the Google
 Authenticator app on your phone.
 
-> **Windows is new in 0.3.1.** It is built and packaged by CI on every release, and the code
-> it is built from is the same code the Linux tests cover — but it has had far less running
-> time than Linux has. If something is wrong there, an issue is welcome.
+> **Windows is new in 0.3.1 and macOS in 0.5.0.** Both are built and packaged by CI on every
+> release, and the code they are built from is the same code the Linux tests cover — but they
+> have had far less running time than Linux has. If something is wrong there, an issue is welcome.
 
 The name is Latin. A *tessera hospitalis* was the token a Roman carried to prove who he was —
 one half of a tablet that only matched its counterpart. That is what a shared secret is.
@@ -141,6 +141,7 @@ If you accept an update, what happens next depends on how you installed it:
 | --- | --- |
 | `.AppImage` | Replaces the file and restarts. Nothing is asked of you. |
 | Windows `.exe` | Runs the new installer over the top and restarts. |
+| macOS `.dmg` | Replaces the app in place and restarts. Nothing is asked of you. |
 | `.deb` / `.rpm` | Your system asks for an administrator password first, because your package manager owns those files. |
 
 Every package is signed, and Tessera checks that signature against a key built into it before
@@ -176,6 +177,23 @@ sudo dnf install ./Tessera-0.3.1-1.x86_64.rpm
 Run the installer. Windows 11 already has the WebView2 runtime Tessera draws through;
 on Windows 10 the installer fetches it if it is missing.
 
+### macOS (`.dmg`)
+
+Open the disk image and drag Tessera into Applications. It runs on macOS 11 or later, on
+both Apple Silicon and Intel — one download covers both.
+
+**The first launch needs one extra click.** Tessera is not signed with an Apple Developer
+ID, so macOS will say it cannot verify the developer (or, on recent versions, that the app
+"is damaged" — it is not). Go to **System Settings → Privacy & Security**, scroll down, and
+choose **Open Anyway**; you are asked once and never again. If you prefer the terminal:
+
+```bash
+xattr -d com.apple.quarantine /Applications/Tessera.app
+```
+
+This is the same warning Windows shows for the unsigned installer. Nothing about the app is
+different; what is missing is a yearly fee to Apple.
+
 ### Any Linux (`.AppImage`)
 
 No installation, no root:
@@ -200,7 +218,9 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
 On Windows you need the Microsoft C++ build tools and the WebView2 runtime, both of which
 [Tauri's prerequisites page](https://tauri.app/start/prerequisites/) walks through.
 
-Then, on either:
+On macOS, `xcode-select --install` is enough.
+
+Then, on any of them:
 
 ```bash
 git clone https://github.com/privum-cloud/tessera-mfa-app.git
@@ -209,6 +229,7 @@ npm install
 
 npm run tauri build -- --bundles deb     # Linux
 npm run tauri build -- --bundles nsis    # Windows
+npm run tauri build -- --bundles dmg     # macOS
 
 # or run it live during development:
 npm run tauri dev
@@ -222,7 +243,8 @@ and never leaves your machine. Tessera cannot recover it — if you lose it, you
 **It is asked for at every launch.** There is no OS keyring integration, deliberately: the
 derived key never touches disk, at the cost of typing a password each session.
 
-**The vault file is `0600`** in `~/.local/share/tessera/`, in a `0700` directory. Writes go to
+**The vault file is `0600`** in `~/.local/share/tessera/` on Linux and
+`~/Library/Application Support/tessera/` on macOS, in a `0700` directory. Writes go to
 a temporary file and are renamed into place, so an interrupted save cannot leave a vault that
 is neither the old one nor the new one.
 
